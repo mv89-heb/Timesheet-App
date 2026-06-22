@@ -10,7 +10,6 @@ from datetime import datetime
 app = Flask(__name__)
 app.secret_key = 'admin_secret_key_123'
 
-# קבלת קישור ההתחברות מתוך משתני הסביבה של Render
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_db():
@@ -40,8 +39,10 @@ def init_db():
                    total_hours REAL,
                    notes TEXT,
                    UNIQUE(employee_id, date))''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS schedule
+    # טבלת השיבוץ החדשה (תומכת בחודשים נפרדים)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS monthly_schedule
                   (id SERIAL PRIMARY KEY,
+                   month TEXT UNIQUE,
                    matrix_json TEXT)''')
     conn.commit()
     cursor.close()
@@ -284,23 +285,32 @@ def dashboard_stats():
     chart_data = [{'name': v['name'], 'hours': round(v['hours'], 2), 'dept': v['dept']} for v in emp_hours_map.values() if v['hours'] > 0]
     return jsonify({'waiters_count': w_count, 'maint_count': m_count, 'waiters_hours': round(w_hours, 2), 'maint_hours': round(m_hours, 2), 'anomalies_count': anomalies_count, 'chart_data': chart_data})
 
+# ---------------------------------------------------------
+# לוח שיבוץ משודרג - תומך שמירה ושליפה פר חודש נבחר
+# ---------------------------------------------------------
 @app.route('/api/schedule', methods=['GET', 'POST'])
 def handle_schedule():
     conn = get_db()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     if request.method == 'POST':
         if not session.get('logged_in'): return jsonify({'error': 'Unauthorized'}), 401
-        cursor.execute("DELETE FROM schedule")
-        cursor.execute("INSERT INTO schedule (matrix_json) VALUES (%s)", (json.dumps(request.json.get('matrix')),))
+        month = request.json.get('month')
+        matrix = json.dumps(request.json.get('matrix'))
+        
+        cursor.execute("""
+            INSERT INTO monthly_schedule (month, matrix_json) VALUES (%s, %s)
+            ON CONFLICT(month) DO UPDATE SET matrix_json=EXCLUDED.matrix_json
+        """, (month, matrix))
         conn.commit()
         cursor.close(); conn.close()
         return jsonify({'success': True})
     else:
-        cursor.execute("SELECT matrix_json FROM schedule ORDER BY id DESC LIMIT 1")
+        month = request.args.get('month', datetime.now().strftime('%Y-%m'))
+        cursor.execute("SELECT matrix_json FROM monthly_schedule WHERE month = %s", (month,))
         row = cursor.fetchone()
         cursor.close(); conn.close()
         if row: return jsonify({'matrix': json.loads(row['matrix_json'])})
-        return jsonify({'matrix': [["תפקיד", "ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"], ["אחראי משמרת", "", "", "", "", "", "", ""]]})
+        return jsonify({'matrix': []})
 
 @app.route('/api/exports/all_employees', methods=['GET'])
 def export_all_employees():
