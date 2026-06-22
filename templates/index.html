@@ -18,6 +18,10 @@
         .anomaly-cell { background-color: #fee2e2 !important; border: 1px solid #ef4444 !important; border-radius: 6px;}
         .dark .anomaly-cell { background-color: rgba(239, 68, 68, 0.2) !important; }
         #login-screen { background: linear-gradient(135deg, #0f172a 0%, #1e40af 100%); }
+        /* תמיכה טובה לטבלת שיבוץ רחבה */
+        .sticky-col { position: sticky; right: 0; z-index: 10; box-shadow: -2px 0 5px rgba(0,0,0,0.05); }
+        .dark .sticky-col { box-shadow: -2px 0 5px rgba(0,0,0,0.5); }
+        
         @media print { 
             body * { visibility: hidden; } 
             #print-section, #print-section * { visibility: visible; } 
@@ -69,12 +73,13 @@
             <div class="max-w-7xl mx-auto flex space-x-reverse space-x-2 px-6 overflow-x-auto">
                 <button onclick="switchTab('dashboard')" id="tab-dashboard" class="py-4 px-4 font-semibold text-blue-600 border-b-2 border-blue-600 flex items-center gap-2 whitespace-nowrap"><i class="fa-solid fa-chart-pie"></i> דשבורד <span id="anomaly-badge" class="hidden bg-red-500 text-white text-[10px] px-1.5 rounded-full">0</span></button>
                 <button onclick="switchTab('hours')" id="tab-hours" class="py-4 px-4 font-semibold text-slate-500 border-b-2 border-transparent hover:text-blue-600 flex items-center gap-2 whitespace-nowrap"><i class="fa-solid fa-table-cells"></i> גיליון אקסל מנהל</button>
-                <button onclick="switchTab('schedule')" id="tab-schedule" class="py-4 px-4 font-semibold text-slate-500 border-b-2 border-transparent hover:text-blue-600 flex items-center gap-2 whitespace-nowrap"><i class="fa-regular fa-calendar-days"></i> שיבוץ <span id="unsaved-badge" class="hidden w-2 h-2 bg-red-500 rounded-full animate-ping"></span></button>
+                <button onclick="switchTab('schedule')" id="tab-schedule" class="py-4 px-4 font-semibold text-slate-500 border-b-2 border-transparent hover:text-blue-600 flex items-center gap-2 whitespace-nowrap"><i class="fa-regular fa-calendar-days"></i> שיבוץ עובדים</button>
                 <button onclick="switchTab('pins')" id="tab-pins" class="py-4 px-4 font-semibold text-slate-500 border-b-2 border-transparent hover:text-blue-600 flex items-center gap-2 whitespace-nowrap"><i class="fa-solid fa-key"></i> קודי PIN עובדים</button>
             </div>
         </div>
 
-        <main class="flex-grow max-w-7xl w-full mx-auto p-6">
+        <main class="flex-grow max-w-7xl w-full mx-auto p-6 overflow-hidden flex flex-col">
+            
             <section id="content-dashboard" class="space-y-6">
                 <div id="anomaly-alert" class="hidden bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl flex items-center gap-3"><i class="fa-solid fa-triangle-exclamation text-2xl"></i><div><h3 class="font-bold">פעולה נדרשת!</h3><p class="text-sm">ישנן משמרות שנותרו פתוחות מאתמול ללא שעת יציאה.</p></div></div>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -86,7 +91,7 @@
                 <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border dark:border-slate-700 h-96"><canvas id="hoursChart"></canvas></div>
             </section>
 
-            <section id="content-hours" class="hidden flex flex-col md:flex-row gap-6">
+            <section id="content-hours" class="hidden flex-col md:flex-row gap-6 flex-grow">
                 <aside class="w-full md:w-1/4 bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border dark:border-slate-700 h-fit">
                     <div class="flex justify-between items-center mb-4"><h2 class="font-bold">רשימת עובדים</h2><button onclick="openEmpModal()" class="text-xs bg-blue-600 text-white px-2 py-1 rounded">+ חדש</button></div>
                     <input type="text" id="emp-search" placeholder="חיפוש עובד..." class="w-full bg-slate-50 dark:bg-slate-700 border p-2 rounded-lg mb-4 text-sm outline-none" onkeyup="filterEmployees()">
@@ -107,13 +112,12 @@
                         <div id="shift-controls" class="flex gap-2 items-center flex-wrap justify-end">
                             <button onclick="if(currentEmpId) loadShiftsForGrid(currentEmpId, currentEmpName)" class="text-slate-400 hover:text-blue-500" title="רענן"><i class="fa-solid fa-rotate-right"></i></button>
                             <input type="month" id="month-picker" class="bg-slate-50 dark:bg-slate-700 border p-2 rounded-lg outline-none" onchange="if(currentEmpId) renderMonthGrid()">
-                            
                             <button onclick="showValidationReport()" class="bg-purple-100 text-purple-800 border border-purple-300 hover:bg-purple-200 px-3 py-2 rounded-lg font-bold shadow-md flex gap-2 items-center text-sm"><i class="fa-solid fa-wand-magic-sparkles"></i> דוח אימות חכם</button>
                             <button onclick="exportAllEmployeesToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg font-bold shadow-md flex gap-2 items-center text-sm"><i class="fa-solid fa-file-excel"></i> דוח כולל</button>
                             <button onclick="exportToCSV()" class="bg-slate-100 dark:bg-slate-700 px-3 py-2 rounded-lg font-medium border text-sm"><i class="fa-solid fa-file-csv text-green-600"></i> אקסל</button>
                         </div>
                     </div>
-                    <div class="overflow-x-auto flex-grow h-[600px] relative">
+                    <div class="overflow-x-auto flex-grow relative" style="max-height: 600px;">
                         <table class="w-full text-right border-collapse table-fixed">
                             <thead class="bg-slate-50 dark:bg-slate-700/50 border-b text-sm sticky top-0 z-10">
                                 <tr><th class="p-3 w-16">יום</th><th class="p-3 w-32">תאריך</th><th class="p-3 w-24">כניסה 1</th><th class="p-3 w-24">יציאה 1</th><th class="p-3 w-24">כניסה 2</th><th class="p-3 w-24">יציאה 2</th><th class="p-3 w-24 text-indigo-600">סה"כ</th><th class="p-3">הערות</th></tr>
@@ -124,14 +128,21 @@
                 </div>
             </section>
             
-            <section id="content-schedule" class="hidden bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-                <div class="flex justify-between items-center mb-6 border-b pb-4 dark:border-slate-700">
-                    <div><h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-calendar-week text-blue-500"></i> לוח שיבוץ שבועי</h2></div>
-                    <div class="flex gap-3"><button onclick="saveScheduleToDB()" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold shadow-md">שמור שיבוץ במערכת</button></div>
+            <section id="content-schedule" class="hidden bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex-col flex-grow">
+                <div class="flex justify-between items-center mb-6 border-b pb-4 dark:border-slate-700 flex-wrap gap-4">
+                    <div><h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-calendar-days text-blue-500"></i> לוח שיבוץ חודשי</h2></div>
+                    <div class="flex gap-3 items-center">
+                        <input type="month" id="schedule-month-picker" class="bg-slate-50 dark:bg-slate-700 border p-2 rounded-lg outline-none font-bold" onchange="loadSchedule()">
+                        <button onclick="saveScheduleToDB()" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold shadow-md">שמור שיבוץ במערכת</button>
+                    </div>
                 </div>
                 <datalist id="employee-names-list"></datalist>
-                <div class="overflow-x-auto border rounded-xl bg-slate-50 dark:bg-slate-900 dark:border-slate-700"><table id="schedule-table" class="w-full text-right text-sm border-collapse whitespace-nowrap"></table></div>
-                <button onclick="addRow()" class="mt-4 text-sm bg-slate-200 dark:bg-slate-700 px-4 py-2 rounded-lg"><i class="fa-solid fa-plus"></i> הוסף שורת תפקיד</button>
+                <div class="overflow-x-auto border rounded-xl bg-slate-50 dark:bg-slate-900 dark:border-slate-700 flex-grow" style="max-height: 600px;">
+                    <table id="schedule-table" class="text-right text-sm border-collapse whitespace-nowrap min-w-full"></table>
+                </div>
+                <div class="mt-4">
+                    <button onclick="addRow()" class="text-sm bg-slate-200 dark:bg-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 font-bold"><i class="fa-solid fa-plus"></i> הוסף שורת תפקיד חדשה</button>
+                </div>
             </section>
 
             <section id="content-pins" class="hidden bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
@@ -182,7 +193,11 @@
         if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
 
         document.addEventListener('DOMContentLoaded', () => {
-            const now = new Date(); document.getElementById('month-picker').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            const now = new Date(); 
+            const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            document.getElementById('month-picker').value = currentMonthStr;
+            document.getElementById('schedule-month-picker').value = currentMonthStr; // הוספה ללוח שיבוץ
+            
             fetch('/api/check_auth').then(r=>r.json()).then(d => {
                 if(d.logged_in) {
                     document.getElementById('login-screen').classList.add('hidden');
@@ -196,8 +211,14 @@
         function performLogout() { fetch('/api/logout', {method:'POST'}).then(()=>window.location.reload()); }
 
         function switchTab(tabId) {
-            ['dashboard', 'hours', 'schedule', 'pins'].forEach(t => { document.getElementById(`content-${t}`).classList.add('hidden'); document.getElementById(`tab-${t}`).classList.remove('text-blue-600', 'border-blue-600'); document.getElementById(`tab-${t}`).classList.add('text-slate-500', 'border-transparent'); });
-            document.getElementById(`content-${tabId}`).classList.remove('hidden'); document.getElementById(`tab-${tabId}`).classList.remove('text-slate-500', 'border-transparent'); document.getElementById(`tab-${tabId}`).classList.add('text-blue-600', 'border-blue-600');
+            ['dashboard', 'hours', 'schedule', 'pins'].forEach(t => { document.getElementById(`content-${t}`).classList.add('hidden'); document.getElementById(`content-${t}`).classList.remove('flex'); document.getElementById(`tab-${t}`).classList.remove('text-blue-600', 'border-blue-600'); document.getElementById(`tab-${t}`).classList.add('text-slate-500', 'border-transparent'); });
+            
+            const targetEl = document.getElementById(`content-${tabId}`);
+            targetEl.classList.remove('hidden');
+            if(tabId === 'hours' || tabId === 'schedule') targetEl.classList.add('flex');
+            
+            document.getElementById(`tab-${tabId}`).classList.remove('text-slate-500', 'border-transparent'); document.getElementById(`tab-${tabId}`).classList.add('text-blue-600', 'border-blue-600');
+            
             if(tabId === 'dashboard') loadDashboard(); 
             if(tabId === 'schedule') loadSchedule();
             if(tabId === 'pins') renderPinsTable();
@@ -363,76 +384,156 @@
         }
 
         // ==========================================
-        // שכבת תאריכים דינמיים ללוח השיבוץ
+        // מערכת השיבוץ החודשית (עם תאריכים עבריים דינמיים)
         // ==========================================
         let scheduleTimeout;
-        function getCurrentWeekDates() {
-            const today = new Date();
-            const currentDay = today.getDay();
-            const startOfWeek = new Date(today);
-            startOfWeek.setDate(today.getDate() - currentDay);
-            const dates = [];
-            for(let i = 0; i < 7; i++) {
-                const d = new Date(startOfWeek);
-                d.setDate(startOfWeek.getDate() + i);
-                dates.push(`${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`);
-            }
-            return dates;
-        }
 
-        function loadSchedule() { const localDraft = localStorage.getItem('schedule_draft'); if(localDraft) { renderScheduleTable(JSON.parse(localDraft)); document.getElementById('unsaved-badge').classList.remove('hidden'); } else { fetch('/api/schedule').then(r=>r.json()).then(d => renderScheduleTable(d.matrix)); } }
+        function loadSchedule() { 
+            const monthVal = document.getElementById('schedule-month-picker').value;
+            fetch(`/api/schedule?month=${monthVal}`).then(r=>r.json()).then(d => { 
+                renderScheduleTable(d.matrix); 
+                document.getElementById('unsaved-badge').classList.add('hidden'); 
+            }); 
+        }
         
         function renderScheduleTable(matrix) { 
-            const t = document.getElementById('schedule-table'); t.innerHTML = ''; 
-            const weekDates = getCurrentWeekDates();
-            matrix.forEach((row, rI) => { 
+            const t = document.getElementById('schedule-table'); 
+            t.innerHTML = ''; 
+            const monthVal = document.getElementById('schedule-month-picker').value;
+            const [year, month] = monthVal.split('-');
+            const daysInMonth = new Date(year, month, 0).getDate();
+
+            // יצירת שורת הכותרות (דינמית לפי החודש)
+            const trHead = document.createElement('tr'); 
+            trHead.className = "bg-slate-200 dark:bg-slate-800 font-bold border-b-2 dark:border-slate-600 sticky top-0 z-20"; 
+            
+            const thRole = document.createElement('th');
+            thRole.className = "p-3 border-x dark:border-slate-700 sticky-col bg-slate-200 dark:bg-slate-800 z-30 min-w-[150px]";
+            thRole.innerText = "תפקיד";
+            trHead.appendChild(thRole);
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const currentDate = new Date(year, month - 1, d);
+                const th = document.createElement('th');
+                th.className = "p-2 border-x dark:border-slate-700 min-w-[120px] text-center bg-slate-200 dark:bg-slate-800";
+                
+                // שימוש במנוע הפנימי של הדפדפן להמרה לתאריך עברי
+                const hebDate = new Intl.DateTimeFormat('he-IL-u-ca-hebrew', {day: 'numeric', month: 'short'}).format(currentDate);
+                const dayName = new Intl.DateTimeFormat('he-IL', {weekday: 'short'}).format(currentDate);
+                const isWeekend = currentDate.getDay() === 5 || currentDate.getDay() === 6;
+                const colorClass = isWeekend ? 'text-orange-600 dark:text-orange-400' : 'text-slate-700 dark:text-slate-300';
+
+                th.innerHTML = `
+                    <div class="${colorClass}">
+                        <div class="text-sm font-black">${dayName}</div>
+                        <div class="text-lg leading-tight">${d}/${month}</div>
+                        <div class="text-xs text-blue-600 dark:text-blue-400 mt-1">${hebDate}</div>
+                    </div>
+                `;
+                trHead.appendChild(th);
+            }
+            const thDel = document.createElement('th');
+            thDel.className = "p-2 bg-slate-200 dark:bg-slate-800";
+            trHead.appendChild(thDel);
+            t.appendChild(trHead);
+
+            // יצירת שורות הנתונים
+            // הגנה לאחור: אם מסד הנתונים מכיל את הלוח השבועי הישן, נתעלם משורת הכותרות שלו
+            let startIdx = 0;
+            let dataRows = matrix;
+            if (dataRows.length > 0 && dataRows[0][0] === "תפקיד") startIdx = 1;
+            
+            if (dataRows.length === 0 || startIdx >= dataRows.length) {
+                 dataRows = [["אחראי משמרת"]]; // שורת ברירת מחדל לחודש ריק
+                 startIdx = 0;
+            }
+
+            for(let i = startIdx; i < dataRows.length; i++) {
+                const rowData = dataRows[i];
                 const tr = document.createElement('tr'); 
-                if(rI === 0) tr.className = "bg-slate-200 dark:bg-slate-800 font-bold border-b-2 dark:border-slate-600"; 
-                else tr.className = "border-b dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800/80"; 
-                row.forEach((cell, cI) => { 
-                    const c = rI === 0 ? document.createElement('th') : document.createElement('td'); 
-                    c.className = "p-2 border-x dark:border-slate-700 min-w-[120px]"; 
-                    if(rI === 0 || cI === 0) { 
-                        if (rI === 0 && cI > 0 && cI <= 7) {
-                            c.innerHTML = `${cell}<br><span class="text-xs font-normal text-slate-500 dark:text-slate-400">${weekDates[cI-1]}</span>`;
-                        } else {
-                            c.innerText = cell; 
-                        }
-                        if(cI === 0 && rI !== 0) c.className += " font-bold bg-slate-100 dark:bg-slate-800"; 
-                    } else { 
-                        c.innerHTML = `<input type="text" list="employee-names-list" value="${cell}" oninput="triggerAutoSave()" class="w-full bg-transparent outline-none focus:bg-blue-50 dark:focus:bg-blue-900/30 p-1 text-center">`; 
-                    } 
-                    tr.appendChild(c); 
-                }); 
-                if(rI !== 0) { 
-                    const del = document.createElement('td'); del.className = "p-2 text-center"; del.innerHTML = `<button onclick="this.parentElement.parentElement.remove(); triggerAutoSave();" class="text-red-400"><i class="fa-solid fa-xmark"></i></button>`; tr.appendChild(del); 
-                } else tr.appendChild(document.createElement('th')); 
+                tr.className = "border-b dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800/80"; 
+                
+                const tdRole = document.createElement('td');
+                tdRole.className = "p-2 border-x dark:border-slate-700 sticky-col bg-white dark:bg-slate-800 z-10 font-bold shadow-sm";
+                tdRole.innerHTML = `<input type="text" value="${rowData[0] || ''}" oninput="triggerAutoSave()" class="w-full bg-transparent outline-none font-bold">`;
+                tr.appendChild(tdRole);
+
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const td = document.createElement('td');
+                    td.className = "p-2 border-x dark:border-slate-700 hover:bg-blue-50/50 dark:hover:bg-slate-700/50 transition-colors";
+                    const val = rowData[d] || ''; 
+                    td.innerHTML = `<input type="text" list="employee-names-list" value="${val}" oninput="triggerAutoSave()" class="w-full bg-transparent outline-none p-1 text-center">`;
+                    tr.appendChild(td);
+                }
+
+                const tdDel = document.createElement('td'); 
+                tdDel.className = "p-2 text-center bg-white dark:bg-slate-800"; 
+                tdDel.innerHTML = `<button onclick="this.parentElement.parentElement.remove(); triggerAutoSave();" class="text-red-400 hover:text-red-600 transition-colors"><i class="fa-solid fa-xmark"></i></button>`; 
+                tr.appendChild(tdDel); 
                 t.appendChild(tr); 
-            }); 
+            }
         }
 
         function triggerAutoSave() { document.getElementById('unsaved-badge').classList.remove('hidden'); clearTimeout(scheduleTimeout); scheduleTimeout = setTimeout(() => { localStorage.setItem('schedule_draft', JSON.stringify(getMatrixFromTable())); }, 1000); }
         
         function getMatrixFromTable() { 
             const t = document.getElementById('schedule-table'), matrix = []; 
-            for (let i = 0; i < t.rows.length; i++) { 
+            matrix.push(["תפקיד"]); // שכבת מגן: תמיד נשלח כותרת כללית לשרת כדי לא לשבור נתונים היסטוריים
+            
+            for (let i = 1; i < t.rows.length; i++) { 
                 const rowData = []; 
                 for (let j = 0; j < t.rows[i].cells.length - 1; j++) { 
                     const input = t.rows[i].cells[j].querySelector('input'); 
-                    if (i === 0 && j > 0) {
-                        const textNode = t.rows[i].cells[j].childNodes[0];
-                        rowData.push(textNode ? textNode.nodeValue.trim() : "יום");
-                    } else {
-                        rowData.push(input ? input.value.trim() : t.rows[i].cells[j].innerText.trim()); 
-                    }
+                    rowData.push(input ? input.value.trim() : ""); 
                 } 
                 matrix.push(rowData); 
             } 
             return matrix; 
         }
 
-        function addRow() { const t=document.getElementById('schedule-table'), cols=t.rows[0].cells.length-1, tr=document.createElement('tr'); tr.className="border-b dark:border-slate-700 hover:bg-slate-100"; for(let i=0; i<cols; i++) { const td=document.createElement('td'); td.className="p-2 border-x dark:border-slate-700 min-w-[120px]"; if(i===0){td.innerText="תפקיד חדש"; td.className+=" font-bold bg-slate-100 dark:bg-slate-800"; td.contentEditable="true";} else{td.innerHTML=`<input type="text" list="employee-names-list" oninput="triggerAutoSave()" class="w-full bg-transparent outline-none focus:bg-blue-50 p-1 text-center">`;} tr.appendChild(td); } const del=document.createElement('td'); del.className="p-2 text-center"; del.innerHTML=`<button onclick="this.parentElement.parentElement.remove(); triggerAutoSave();" class="text-red-400"><i class="fa-solid fa-xmark"></i></button>`; tr.appendChild(del); t.appendChild(tr); triggerAutoSave(); }
-        function saveScheduleToDB() { const matrix = getMatrixFromTable(); fetch('/api/schedule', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({matrix})}).then(()=> { localStorage.removeItem('schedule_draft'); document.getElementById('unsaved-badge').classList.add('hidden'); Swal.fire({title:'השיבוץ פורסם!', icon:'success', timer:1500, showConfirmButton: false}); }); }
+        function addRow() { 
+            const t = document.getElementById('schedule-table');
+            const monthVal = document.getElementById('schedule-month-picker').value;
+            const daysInMonth = new Date(monthVal.split('-')[0], monthVal.split('-')[1], 0).getDate();
+            
+            const tr = document.createElement('tr'); 
+            tr.className="border-b dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800/80"; 
+            
+            const tdRole = document.createElement('td');
+            tdRole.className = "p-2 border-x dark:border-slate-700 sticky-col bg-white dark:bg-slate-800 z-10 font-bold shadow-sm";
+            tdRole.innerHTML = `<input type="text" value="תפקיד חדש" oninput="triggerAutoSave()" class="w-full bg-transparent outline-none font-bold">`;
+            tr.appendChild(tdRole);
+
+            for(let d=1; d<=daysInMonth; d++) { 
+                const td=document.createElement('td'); 
+                td.className="p-2 border-x dark:border-slate-700 hover:bg-blue-50/50 dark:hover:bg-slate-700/50 transition-colors"; 
+                td.innerHTML=`<input type="text" list="employee-names-list" oninput="triggerAutoSave()" class="w-full bg-transparent outline-none p-1 text-center">`; 
+                tr.appendChild(td); 
+            } 
+            
+            const tdDel=document.createElement('td'); 
+            tdDel.className="p-2 text-center bg-white dark:bg-slate-800"; 
+            tdDel.innerHTML=`<button onclick="this.parentElement.parentElement.remove(); triggerAutoSave();" class="text-red-400 hover:text-red-600 transition-colors"><i class="fa-solid fa-xmark"></i></button>`; 
+            tr.appendChild(tdDel); 
+            
+            t.appendChild(tr); 
+            triggerAutoSave(); 
+        }
+
+        function saveScheduleToDB() { 
+            const matrix = getMatrixFromTable(); 
+            const monthVal = document.getElementById('schedule-month-picker').value;
+            
+            fetch('/api/schedule', {
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({ month: monthVal, matrix: matrix })
+            }).then(()=> { 
+                localStorage.removeItem('schedule_draft'); 
+                document.getElementById('unsaved-badge').classList.add('hidden'); 
+                Swal.fire({title:'השיבוץ נשמר בהצלחה!', icon:'success', timer:1500, showConfirmButton: false}); 
+            }); 
+        }
 
         function renderPinsTable() {
             const tbody = document.getElementById('pins-table-tbody'); tbody.innerHTML = '';
