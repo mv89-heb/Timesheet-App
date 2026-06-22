@@ -24,7 +24,7 @@
     
     <div class="bg-white rounded-[2rem] shadow-2xl p-8 w-full max-w-md text-center border-t-8 border-blue-600 relative overflow-hidden">
         <h1 class="text-3xl font-black text-slate-800 mb-1">עמדת החתמה</h1>
-        <div id="clock" class="text-4xl font-black text-blue-500 mb-6 tracking-wider font-mono bg-blue-50 py-3 rounded-2xl border border-blue-100" style="direction: ltr;">00:00:00</div>
+        <div id="clock" class="text-4xl font-black text-blue-500 mb-6 tracking-wider font-mono bg-blue-50 py-3 rounded-2xl border border-blue-100">00:00:00</div>
 
         <div id="screen-action" class="flex flex-col gap-5">
             <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-right text-slate-600 text-sm shadow-inner">
@@ -86,8 +86,7 @@
 
         setInterval(() => {
             const now = new Date();
-            // הגדרת hour12: false כופה תצוגת 24 שעות ומעלימה את ה-AM/PM (ה-A)
-            document.getElementById('clock').innerText = now.toLocaleTimeString('he-IL', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            document.getElementById('clock').innerText = now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         }, 1000);
 
         function resetIdleTimer() {
