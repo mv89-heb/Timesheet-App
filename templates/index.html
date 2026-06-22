@@ -12,7 +12,7 @@
     <script src="https://unpkg.com/@popperjs/core@2"></script>
     <script src="https://unpkg.com/tippy.js@6"></script>
     <style>
-        .grid-input { width: 100%; background: transparent; border: 1px solid transparent; outline: none; text-align: center; padding: 6px; border-radius: 4px; transition: all 0.2s; direction: ltr; }
+        .grid-input { width: 100%; background: transparent; border: 1px solid transparent; outline: none; text-align: center; padding: 6px; border-radius: 4px; transition: all 0.2s; }
         .grid-input:focus { background: white; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
         .dark .grid-input:focus { background: #1e293b; border-color: #3b82f6; color: white; }
         .anomaly-cell { background-color: #fee2e2 !important; border: 1px solid #ef4444 !important; border-radius: 6px;}
@@ -101,7 +101,7 @@
                             <div id="emp-details-bar" class="hidden flex gap-4 mt-3 text-sm items-center flex-wrap">
                                 <div class="bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-lg border border-indigo-100"><span class="text-indigo-500">סה"כ שעות:</span> <span id="meta-hours" class="font-bold text-indigo-700">0.0</span></div>
                                 <div class="bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 rounded-lg border border-emerald-100"><span class="text-emerald-600">PIN לקיוסק:</span> <span id="meta-pin" class="font-bold text-emerald-700 tracking-wider"></span></div>
-                                <span id="save-indicator" class="text-emerald-500 text-xs font-bold opacity-0 transition-opacity"><i class="fa-solid fa-check-circle"></i> נשמר בחשבון</span>
+                                <span id="save-indicator" class="text-emerald-500 text-xs font-bold opacity-0 transition-opacity"><i class="fa-solid fa-check-circle"></i> נשמר</span>
                             </div>
                         </div>
                         <div id="shift-controls" class="flex gap-2 items-center flex-wrap justify-end">
@@ -267,25 +267,17 @@
                 const warningsArray = s.warnings || [];
                 const isAnomaly = warningsArray.length > 0;
                 const rowClass = isAnomaly ? "bg-rose-50 dark:bg-rose-900/20 anomaly-cell" : (isWeekend ? "bg-orange-50/50 dark:bg-orange-900/10" : "hover:bg-blue-50 dark:hover:bg-slate-700/80");
-
                 const warningIcon = isAnomaly ? `<span class="mr-2 cursor-pointer text-red-500 hover:text-red-700" data-tippy-content="<div class='text-right'><b>⚠️ חריגות שזוהו:</b><br>${warningsArray.join('<br>')}</div>" data-tippy-allowHTML="true"><i class="fa-solid fa-circle-exclamation text-lg animate-pulse"></i></span>` : '';
-
-                // טיפול ב-null כדי שלא ישבבש את הקלט
-                const e1 = s.entry1 && s.entry1 !== '-' ? s.entry1 : '';
-                const x1 = s.exit1 && s.exit1 !== '-' ? s.exit1 : '';
-                const e2 = s.entry2 && s.entry2 !== '-' ? s.entry2 : '';
-                const x2 = s.exit2 && s.exit2 !== '-' ? s.exit2 : '';
-                const th = s.total_hours ? s.total_hours : '';
 
                 const tr = document.createElement('tr'); tr.className = `border-b dark:border-slate-700 ${rowClass}`;
                 tr.innerHTML = `
                     <td class="p-2 font-bold ${isWeekend && !isAnomaly ? 'text-orange-500' : (isAnomaly ? 'text-red-500' : 'text-slate-400')}">${dayNames[dayOfWeek]}</td>
                     <td class="p-2 font-medium flex items-center gap-1 ${isAnomaly ? 'text-red-600 font-bold' : ''}">${dateStr} ${warningIcon}</td>
-                    <td class="p-1"><input type="time" class="grid-input" value="${e1}" data-date="${dateStr}" data-field="entry1" onblur="handleCellBlur(this)"></td>
-                    <td class="p-1"><input type="time" class="grid-input" value="${x1}" data-date="${dateStr}" data-field="exit1" onblur="handleCellBlur(this)"></td>
-                    <td class="p-1"><input type="time" class="grid-input" value="${e2}" data-date="${dateStr}" data-field="entry2" onblur="handleCellBlur(this)"></td>
-                    <td class="p-1"><input type="time" class="grid-input" value="${x2}" data-date="${dateStr}" data-field="exit2" onblur="handleCellBlur(this)"></td>
-                    <td class="p-1 bg-indigo-50/50 dark:bg-indigo-900/20"><input type="number" step="0.01" class="grid-input font-bold text-indigo-600" value="${th}" data-date="${dateStr}" data-field="total_hours" onblur="handleCellBlur(this)"></td>
+                    <td class="p-1"><input type="time" class="grid-input" value="${s.entry1 !== '-' ? s.entry1 : ''}" data-date="${dateStr}" data-field="entry1" onblur="handleCellBlur(this)"></td>
+                    <td class="p-1"><input type="time" class="grid-input" value="${s.exit1 !== '-' ? s.exit1 : ''}" data-date="${dateStr}" data-field="exit1" onblur="handleCellBlur(this)"></td>
+                    <td class="p-1"><input type="time" class="grid-input" value="${s.entry2 !== '-' ? s.entry2 : ''}" data-date="${dateStr}" data-field="entry2" onblur="handleCellBlur(this)"></td>
+                    <td class="p-1"><input type="time" class="grid-input" value="${s.exit2 !== '-' ? s.exit2 : ''}" data-date="${dateStr}" data-field="exit2" onblur="handleCellBlur(this)"></td>
+                    <td class="p-1 bg-indigo-50/50 dark:bg-indigo-900/20"><input type="number" step="0.01" class="grid-input font-bold text-indigo-600" value="${s.total_hours}" data-date="${dateStr}" data-field="total_hours" onblur="handleCellBlur(this)"></td>
                     <td class="p-1"><input type="text" class="grid-input" value="${s.notes !== '-' ? s.notes : ''}" data-date="${dateStr}" data-field="notes" onblur="handleCellBlur(this)"></td>
                 `;
                 tbody.appendChild(tr);
@@ -297,7 +289,6 @@
         function showValidationReport() {
             if(!currentEmpId) return Swal.fire('שגיאה', 'יש לבחור עובד', 'error');
             const monthFilter = document.getElementById('month-picker').value;
-
             let totalH = 0, totalShifts = 0, allWarnings = [];
             const testsRun = ["בדיקת חפיפות זמנים בין משמרות", "איתור משמרות פתוחות ללא סיום (אתמול ומטה)", "זיהוי אורך משמרת חריג (>16 שעות)", "איתור פערים ארוכים במיוחד באותו יום"];
 
@@ -310,7 +301,6 @@
             let warningsHtml = allWarnings.length > 0
                 ? `<div class="bg-rose-50 text-rose-700 p-3 rounded text-sm text-right mt-3"><b>⚠️ אזהרות שנמצאו (לא בוצע שינוי נתונים):</b><br><ul class="list-disc list-inside mt-1">${allWarnings.map(w => `<li>${w}</li>`).join('')}</ul></div>`
                 : `<div class="bg-emerald-50 text-emerald-700 p-3 rounded text-sm text-right mt-3"><i class="fa-solid fa-check"></i> לא נמצאו חריגות לוגיות בנתונים אלו.</div>`;
-
             let testsHtml = `<div class="bg-slate-50 text-slate-600 p-3 rounded text-sm text-right mt-3 border border-slate-200"><b>🔍 בדיקות תקינות שהופעלו:</b><br><ul class="list-disc list-inside mt-1">${testsRun.map(t => `<li>${t}</li>`).join('')}</ul></div>`;
 
             Swal.fire({
@@ -325,10 +315,16 @@
             const getVal = (f) => tr.querySelector(`[data-field="${f}"]`).value;
             let e1 = getVal('entry1'), x1 = getVal('exit1'), e2 = getVal('entry2'), x2 = getVal('exit2'), notes = getVal('notes');
             
-            const payload = { employee_id: currentEmpId, date: date, entry1: e1 || '-', exit1: x1 || '-', entry2: e2 || '-', exit2: x2 || '-', total_hours: tr.querySelector('[data-field="total_hours"]').value || 0, notes: notes || '-' };
-            if(!e1 && !x1 && !e2 && !x2 && !payload.total_hours && !notes) return;
+            const t2d = (t) => { if(!t) return null; let [h, m] = t.split(':').map(Number); return h + (m/60); };
+            const calcDiff = (start, end) => { if(start === null || end === null) return 0; let diff = end - start; if (diff < 0) diff += 24; return diff; };
+            
+            let autoTotal = calcDiff(t2d(e1), t2d(x1)) + calcDiff(t2d(e2), t2d(x2));
+            let totalInput = tr.querySelector('[data-field="total_hours"]');
+            if(autoTotal > 0 && inputEl.dataset.field !== 'total_hours') totalInput.value = autoTotal.toFixed(2);
 
-            // שולחים לשרת שגובה את החישובים, ואז מושכים בחזרה את התוצאה המדויקת מהשרת!
+            const payload = { employee_id: currentEmpId, date: date, entry1: e1 || '-', exit1: x1 || '-', entry2: e2 || '-', exit2: x2 || '-', total_hours: totalInput.value || 0, notes: notes || '-' };
+            if(!e1 && !x1 && !e2 && !x2 && !totalInput.value && !notes) return;
+
             fetch('/api/shifts/upsert', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
             .then(r=>r.json()).then(res => {
                 if(res.success) {
@@ -366,23 +362,85 @@
             window.location.href = `/api/exports/all_employees?month=${monthFilter}`;
         }
 
+        // ==========================================
+        // שכבת תאריכים דינמיים ללוח השיבוץ
+        // ==========================================
         let scheduleTimeout;
+        function getCurrentWeekDates() {
+            const today = new Date();
+            const currentDay = today.getDay();
+            const startOfWeek = new Date(today);
+            startOfWeek.setDate(today.getDate() - currentDay);
+            const dates = [];
+            for(let i = 0; i < 7; i++) {
+                const d = new Date(startOfWeek);
+                d.setDate(startOfWeek.getDate() + i);
+                dates.push(`${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`);
+            }
+            return dates;
+        }
+
         function loadSchedule() { const localDraft = localStorage.getItem('schedule_draft'); if(localDraft) { renderScheduleTable(JSON.parse(localDraft)); document.getElementById('unsaved-badge').classList.remove('hidden'); } else { fetch('/api/schedule').then(r=>r.json()).then(d => renderScheduleTable(d.matrix)); } }
-        function renderScheduleTable(matrix) { const t = document.getElementById('schedule-table'); t.innerHTML = ''; matrix.forEach((row, rI) => { const tr = document.createElement('tr'); if(rI===0) tr.className = "bg-slate-200 dark:bg-slate-800 font-bold border-b-2 dark:border-slate-600"; else tr.className = "border-b dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800/80"; row.forEach((cell, cI) => { const c = rI===0 ? document.createElement('th') : document.createElement('td'); c.className = "p-2 border-x dark:border-slate-700 min-w-[120px]"; if(rI===0 || cI===0) { c.innerText = cell; if(cI===0 && rI!==0) c.className+=" font-bold bg-slate-100 dark:bg-slate-800"; } else { c.innerHTML = `<input type="text" list="employee-names-list" value="${cell}" oninput="triggerAutoSave()" class="w-full bg-transparent outline-none focus:bg-blue-50 dark:focus:bg-blue-900/30 p-1 text-center">`; } tr.appendChild(c); }); if(rI!==0) { const del = document.createElement('td'); del.className = "p-2 text-center"; del.innerHTML = `<button onclick="this.parentElement.parentElement.remove(); triggerAutoSave();" class="text-red-400"><i class="fa-solid fa-xmark"></i></button>`; tr.appendChild(del); } else tr.appendChild(document.createElement('th')); t.appendChild(tr); }); }
+        
+        function renderScheduleTable(matrix) { 
+            const t = document.getElementById('schedule-table'); t.innerHTML = ''; 
+            const weekDates = getCurrentWeekDates();
+            matrix.forEach((row, rI) => { 
+                const tr = document.createElement('tr'); 
+                if(rI === 0) tr.className = "bg-slate-200 dark:bg-slate-800 font-bold border-b-2 dark:border-slate-600"; 
+                else tr.className = "border-b dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800/80"; 
+                row.forEach((cell, cI) => { 
+                    const c = rI === 0 ? document.createElement('th') : document.createElement('td'); 
+                    c.className = "p-2 border-x dark:border-slate-700 min-w-[120px]"; 
+                    if(rI === 0 || cI === 0) { 
+                        if (rI === 0 && cI > 0 && cI <= 7) {
+                            c.innerHTML = `${cell}<br><span class="text-xs font-normal text-slate-500 dark:text-slate-400">${weekDates[cI-1]}</span>`;
+                        } else {
+                            c.innerText = cell; 
+                        }
+                        if(cI === 0 && rI !== 0) c.className += " font-bold bg-slate-100 dark:bg-slate-800"; 
+                    } else { 
+                        c.innerHTML = `<input type="text" list="employee-names-list" value="${cell}" oninput="triggerAutoSave()" class="w-full bg-transparent outline-none focus:bg-blue-50 dark:focus:bg-blue-900/30 p-1 text-center">`; 
+                    } 
+                    tr.appendChild(c); 
+                }); 
+                if(rI !== 0) { 
+                    const del = document.createElement('td'); del.className = "p-2 text-center"; del.innerHTML = `<button onclick="this.parentElement.parentElement.remove(); triggerAutoSave();" class="text-red-400"><i class="fa-solid fa-xmark"></i></button>`; tr.appendChild(del); 
+                } else tr.appendChild(document.createElement('th')); 
+                t.appendChild(tr); 
+            }); 
+        }
+
         function triggerAutoSave() { document.getElementById('unsaved-badge').classList.remove('hidden'); clearTimeout(scheduleTimeout); scheduleTimeout = setTimeout(() => { localStorage.setItem('schedule_draft', JSON.stringify(getMatrixFromTable())); }, 1000); }
-        function getMatrixFromTable() { const t = document.getElementById('schedule-table'), matrix = []; for (let i=0; i<t.rows.length; i++) { const rowData = []; for (let j=0; j<t.rows[i].cells.length - 1; j++) { const input = t.rows[i].cells[j].querySelector('input'); rowData.push(input ? input.value.trim() : t.rows[i].cells[j].innerText.trim()); } matrix.push(rowData); } return matrix; }
+        
+        function getMatrixFromTable() { 
+            const t = document.getElementById('schedule-table'), matrix = []; 
+            for (let i = 0; i < t.rows.length; i++) { 
+                const rowData = []; 
+                for (let j = 0; j < t.rows[i].cells.length - 1; j++) { 
+                    const input = t.rows[i].cells[j].querySelector('input'); 
+                    if (i === 0 && j > 0) {
+                        const textNode = t.rows[i].cells[j].childNodes[0];
+                        rowData.push(textNode ? textNode.nodeValue.trim() : "יום");
+                    } else {
+                        rowData.push(input ? input.value.trim() : t.rows[i].cells[j].innerText.trim()); 
+                    }
+                } 
+                matrix.push(rowData); 
+            } 
+            return matrix; 
+        }
+
         function addRow() { const t=document.getElementById('schedule-table'), cols=t.rows[0].cells.length-1, tr=document.createElement('tr'); tr.className="border-b dark:border-slate-700 hover:bg-slate-100"; for(let i=0; i<cols; i++) { const td=document.createElement('td'); td.className="p-2 border-x dark:border-slate-700 min-w-[120px]"; if(i===0){td.innerText="תפקיד חדש"; td.className+=" font-bold bg-slate-100 dark:bg-slate-800"; td.contentEditable="true";} else{td.innerHTML=`<input type="text" list="employee-names-list" oninput="triggerAutoSave()" class="w-full bg-transparent outline-none focus:bg-blue-50 p-1 text-center">`;} tr.appendChild(td); } const del=document.createElement('td'); del.className="p-2 text-center"; del.innerHTML=`<button onclick="this.parentElement.parentElement.remove(); triggerAutoSave();" class="text-red-400"><i class="fa-solid fa-xmark"></i></button>`; tr.appendChild(del); t.appendChild(tr); triggerAutoSave(); }
         function saveScheduleToDB() { const matrix = getMatrixFromTable(); fetch('/api/schedule', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({matrix})}).then(()=> { localStorage.removeItem('schedule_draft'); document.getElementById('unsaved-badge').classList.add('hidden'); Swal.fire({title:'השיבוץ פורסם!', icon:'success', timer:1500, showConfirmButton: false}); }); }
 
         function renderPinsTable() {
-            const tbody = document.getElementById('pins-table-tbody');
-            tbody.innerHTML = '';
+            const tbody = document.getElementById('pins-table-tbody'); tbody.innerHTML = '';
             const deptTranslations = { 'waiters': 'מלצרות', 'maintenance': 'אחזקה' };
             const sortedEmployees = [...allEmployees].sort((a,b) => a.name.localeCompare(b.name));
             if (sortedEmployees.length === 0) { tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-400">אין עובדים רשומים.</td></tr>`; return; }
             sortedEmployees.forEach(emp => {
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors";
+                const tr = document.createElement('tr'); tr.className = "hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors";
                 tr.innerHTML = `<td class="p-3 font-bold text-slate-900 dark:text-white">${emp.name}</td><td class="p-3"><span class="px-2.5 py-1 rounded-full text-xs font-semibold ${emp.department === 'waiters' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'}">${deptTranslations[emp.department] || emp.department}</span></td><td class="p-3 text-slate-600 dark:text-slate-400">${emp.role || '-'}</td><td class="p-3 font-mono text-slate-600 dark:text-slate-400">${emp.phone || '-'}</td><td class="p-3 font-black text-xl text-emerald-600 dark:text-emerald-400 tracking-widest">${emp.pin_code}</td>`;
                 tbody.appendChild(tr);
             });
