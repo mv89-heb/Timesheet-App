@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>שעון נוכחות - קיוסק</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/@popperjs/core@2"></script>
+    <script src="https://unpkg.com/tippy.js@6"></script>
+    <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/animations/scale.css"/>
+    <style>
+        body { background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); font-family: system-ui, -apple-system, sans-serif; }
+        .numpad-btn { transition: all 0.1s; user-select: none; }
+        .numpad-btn:active { transform: scale(0.95); background-color: #cbd5e1; }
+        .pin-dot { transition: all 0.2s; }
+        .pin-dot.filled { background-color: #3b82f6; transform: scale(1.2); }
+        .action-btn { transition: transform 0.2s, box-shadow 0.2s; }
+        .action-btn:active { transform: scale(0.96); box-shadow: none; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    
+    <div class="bg-white rounded-[2rem] shadow-2xl p-8 w-full max-w-md text-center border-t-8 border-blue-600 relative overflow-hidden">
+        <h1 class="text-3xl font-black text-slate-800 mb-1">עמדת החתמה</h1>
+        <div id="clock" class="text-4xl font-black text-blue-500 mb-6 tracking-wider font-mono bg-blue-50 py-3 rounded-2xl border border-blue-100" style="direction: ltr;">00:00:00</div>
+
+        <div id="screen-action" class="flex flex-col gap-5">
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-right text-slate-600 text-sm shadow-inner">
+                <h3 class="font-bold mb-2 text-slate-800"><i class="fa-solid fa-circle-info text-blue-500"></i> הנחיות:</h3>
+                <ul class="list-disc list-inside space-y-1 font-medium">
+                    <li>בחר את סוג הפעולה המבוקשת מהכפתורים מטה.</li>
+                    <li>במסך הבא תתבקש להזין קוד אישי.</li>
+                </ul>
+            </div>
+
+            <button onclick="selectAction('entry')" data-tippy-content="לחץ כאן כשאתה מתחיל משמרת או חוזר מהפסקה" class="action-btn bg-emerald-50 border-2 border-emerald-500 hover:bg-emerald-100 text-emerald-700 py-6 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-md">
+                <i class="fa-solid fa-arrow-right-to-bracket text-4xl"></i>
+                <span class="text-2xl font-black">כניסה למשמרת</span>
+            </button>
+            
+            <button onclick="selectAction('exit')" data-tippy-content="לחץ כאן כשאתה מסיים עבודה או יוצא להפסקה" class="action-btn bg-rose-50 border-2 border-rose-500 hover:bg-rose-100 text-rose-700 py-6 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-md">
+                <i class="fa-solid fa-arrow-right-from-bracket text-4xl"></i>
+                <span class="text-2xl font-black">יציאה ממשמרת</span>
+            </button>
+        </div>
+
+        <div id="screen-pin" class="hidden">
+            <div class="flex justify-between items-center mb-6">
+                <button onclick="goBack()" class="text-slate-500 hover:text-slate-800 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg font-bold transition-colors">
+                    <i class="fa-solid fa-arrow-right"></i> חזור
+                </button>
+                <div id="action-title" class="text-lg font-bold px-4 py-1.5 rounded-full shadow-sm"></div>
+            </div>
+
+            <p class="text-slate-600 font-bold mb-4">נא להקיש קוד PIN אישי:</p>
+
+            <div class="flex justify-center gap-4 mb-6 h-8">
+                <div class="w-5 h-5 rounded-full bg-slate-200 pin-dot" id="dot-1"></div>
+                <div class="w-5 h-5 rounded-full bg-slate-200 pin-dot" id="dot-2"></div>
+                <div class="w-5 h-5 rounded-full bg-slate-200 pin-dot" id="dot-3"></div>
+                <div class="w-5 h-5 rounded-full bg-slate-200 pin-dot" id="dot-4"></div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3 mb-2" dir="ltr">
+                <button onclick="press('1')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">1</button>
+                <button onclick="press('2')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">2</button>
+                <button onclick="press('3')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">3</button>
+                <button onclick="press('4')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">4</button>
+                <button onclick="press('5')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">5</button>
+                <button onclick="press('6')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">6</button>
+                <button onclick="press('7')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">7</button>
+                <button onclick="press('8')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">8</button>
+                <button onclick="press('9')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">9</button>
+                <button onclick="clearPin()" class="numpad-btn bg-red-50 border border-red-200 text-red-500 text-xl font-bold h-20 rounded-2xl shadow-sm"><i class="fa-solid fa-xmark"></i></button>
+                <button onclick="press('0')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">0</button>
+                <button onclick="backspace()" class="numpad-btn bg-slate-100 border border-slate-200 text-slate-600 text-xl font-bold h-20 rounded-2xl shadow-sm"><i class="fa-solid fa-delete-left"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        tippy('[data-tippy-content]', { animation: 'scale', theme: 'light-border', placement: 'bottom' });
+        let currentPin = '', selectedActionType = '', isProcessing = false, idleTimer;
+
+        setInterval(() => {
+            const now = new Date();
+            // הגדרת hour12: false כופה תצוגת 24 שעות ומעלימה את ה-AM/PM (ה-A)
+            document.getElementById('clock').innerText = now.toLocaleTimeString('he-IL', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }, 1000);
+
+        function resetIdleTimer() {
+            clearTimeout(idleTimer);
+            if (!document.getElementById('screen-pin').classList.contains('hidden')) {
+                idleTimer = setTimeout(() => { goBack(); }, 15000); 
+            }
+        }
+
+        function selectAction(type) {
+            if(isProcessing) return;
+            selectedActionType = type;
+            document.getElementById('screen-action').classList.add('hidden');
+            document.getElementById('screen-pin').classList.remove('hidden');
+            const titleEl = document.getElementById('action-title');
+            if (type === 'entry') {
+                titleEl.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> כניסה';
+                titleEl.className = "text-lg font-bold px-4 py-1.5 rounded-full shadow-sm bg-emerald-100 text-emerald-800 border border-emerald-200";
+            } else {
+                titleEl.innerHTML = '<i class="fa-solid fa-arrow-right-from-bracket"></i> יציאה';
+                titleEl.className = "text-lg font-bold px-4 py-1.5 rounded-full shadow-sm bg-rose-100 text-rose-800 border border-rose-200";
+            }
+            clearPin();
+            resetIdleTimer();
+        }
+
+        function goBack() {
+            if (isProcessing) return;
+            document.getElementById('screen-pin').classList.add('hidden');
+            document.getElementById('screen-action').classList.remove('hidden');
+            clearPin();
+            clearTimeout(idleTimer);
+        }
+
+        function updateDots() {
+            for (let i = 1; i <= 4; i++) {
+                const dot = document.getElementById(`dot-${i}`);
+                if (i <= currentPin.length) dot.classList.add('filled');
+                else dot.classList.remove('filled');
+            }
+        }
+
+        function press(digit) {
+            resetIdleTimer();
+            if (isProcessing || currentPin.length >= 4) return;
+            currentPin += digit;
+            updateDots();
+            if (currentPin.length === 4) submitPin(); 
+        }
+
+        function clearPin() {
+            resetIdleTimer();
+            if (isProcessing) return;
+            currentPin = '';
+            updateDots();
+        }
+
+        function backspace() {
+            resetIdleTimer();
+            if (isProcessing || currentPin.length === 0) return;
+            currentPin = currentPin.slice(0, -1);
+            updateDots();
+        }
+
+        function submitPin() {
+            if(isProcessing) return;
+            isProcessing = true;
+            clearTimeout(idleTimer); 
+            
+            fetch('/api/kiosk/punch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pin: currentPin, action_type: selectedActionType })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    let iconType = data.action.includes('כניסה') ? 'success' : 'info';
+                    Swal.fire({
+                        title: `שלום, ${data.name}`,
+                        html: `<div class="text-3xl mt-2 font-black ${selectedActionType === 'entry' ? 'text-emerald-600' : 'text-rose-600'}">${data.action} התקבלה</div>
+                               <div class="text-lg mt-2 text-slate-500 font-bold">השעה: ${data.time}</div>`,
+                        icon: iconType,
+                        timer: 2500, 
+                        showConfirmButton: false,
+                        backdrop: `rgba(0,0,0,0.4)`
+                    }).then(() => {
+                        isProcessing = false;
+                        goBack(); 
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'שגיאה',
+                        text: data.message,
+                        icon: 'error',
+                        timer: 3500,
+                        showConfirmButton: true,
+                        confirmButtonText: 'הבנתי'
+                    }).then(() => {
+                        isProcessing = false;
+                        goBack(); 
+                    });
+                }
+            })
+            .catch(err => {
+                Swal.fire('תקלה', 'לא ניתן להתחבר לשרת. ודא שהמערכת מחוברת.', 'error').then(() => {
+                    isProcessing = false;
+                    goBack();
+                });
+            });
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (document.getElementById('screen-pin').classList.contains('hidden')) return;
+            if (e.key >= '0' && e.key <= '9') press(e.key);
+            if (e.key === 'Backspace') backspace();
+            if (e.key === 'Escape' || e.key === 'Delete') clearPin();
+        });
+    </script>
+</body>
+</html>
