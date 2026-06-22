@@ -1,5 +1,7 @@
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from flask import Flask, render_template, request, jsonify, session, Response
-import sqlite3
 import json
 import csv
 from io import StringIO
@@ -7,28 +9,49 @@ from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = 'admin_secret_key_123'
-DATABASE = 'timesheet.db'
+
+# קבלת קישור ההתחברות מתוך משתני הסביבה של Render
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_db():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return psycopg2.connect(DATABASE_URL)
 
 def init_db():
-    with app.app_context():
-        db = get_db()
-        db.execute('''CREATE TABLE IF NOT EXISTS employees
-                      (id INTEGER PRIMARY KEY AUTOINCREMENT, first_name TEXT, last_name TEXT, phone TEXT, pin_code TEXT, department TEXT, role TEXT)''')
-        db.execute('''CREATE TABLE IF NOT EXISTS shifts
-                      (id INTEGER PRIMARY KEY AUTOINCREMENT, employee_id INTEGER, date TEXT, entry1 TEXT, exit1 TEXT, entry2 TEXT, exit2 TEXT, total_hours REAL, notes TEXT, UNIQUE(employee_id, date))''')
-        db.execute('''CREATE TABLE IF NOT EXISTS schedule
-                      (id INTEGER PRIMARY KEY AUTOINCREMENT, matrix_json TEXT)''')
-        db.commit()
+    if not DATABASE_URL:
+        return
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS employees
+                  (id SERIAL PRIMARY KEY, 
+                   first_name TEXT, 
+                   last_name TEXT, 
+                   phone TEXT, 
+                   pin_code TEXT,
+                   department TEXT,
+                   role TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS shifts
+                  (id SERIAL PRIMARY KEY,
+                   employee_id INTEGER,
+                   date TEXT,
+                   entry1 TEXT,
+                   exit1 TEXT,
+                   entry2 TEXT,
+                   exit2 TEXT,
+                   total_hours REAL,
+                   notes TEXT,
+                   UNIQUE(employee_id, date))''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS schedule
+                  (id SERIAL PRIMARY KEY,
+                   matrix_json TEXT)''')
+    conn.commit()
+    cursor.close()
+    conn.close()
 
-init_db()
+if DATABASE_URL:
+    init_db()
 
 def calc_hours(start_str, end_str):
-    if not start_str or not end_str or start_str == '-' or end_str == '-': return 0
+    if start_str == '-' or end_str == '-': return 0
     fmt = '%H:%M'
     try:
         t1 = datetime.strptime(start_str, fmt)
@@ -63,8 +86,12 @@ def logout():
 @app.route('/api/employees', methods=['GET'])
 def get_employees():
     if not session.get('logged_in'): return jsonify({'error': 'Unauthorized'}), 401
-    db = get_db()
-    emps = db.execute("SELECT * FROM employees ORDER BY first_name").fetchall()
+    conn = get_db()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    cursor.execute("SELECT * FROM employees ORDER BY first_name")
+    emps = cursor.fetchall()
+    cursor.close()
+    conn.close()
     return jsonify([{'id': e['id'], 'name': f"{e['first_name']} {e['last_name']}", 'phone': e['phone'], 'department': e['department'], 'role': e['role'], 'pin_code': e['pin_code']} for e in emps])
 
 @app.route('/api/employees', methods=['POST'])
@@ -72,25 +99,36 @@ def add_employee():
     if not session.get('logged_in'): return jsonify({'error': 'Unauthorized'}), 401
     data = request.json
     pin = data['phone'][-4:] if data['phone'] and len(data['phone']) >= 4 else '0000'
-    db = get_db()
-    db.execute("INSERT INTO employees (first_name, last_name, phone, pin_code, department, role) VALUES (?, ?, ?, ?, ?, ?)",
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO employees (first_name, last_name, phone, pin_code, department, role) VALUES (%s, %s, %s, %s, %s, %s)",
                (data['first_name'], data['last_name'], data['phone'], pin, data['department'], data['role']))
-    db.commit()
+    conn.commit()
+    cursor.close()
+    conn.close()
     return jsonify({'success': True, 'pin': pin})
 
 @app.route('/api/employees/<int:emp_id>', methods=['DELETE'])
 def delete_employee(emp_id):
     if not session.get('logged_in'): return jsonify({'error': 'Unauthorized'}), 401
-    db = get_db()
-    db.execute("DELETE FROM employees WHERE id = ?", (emp_id,))
-    db.execute("DELETE FROM shifts WHERE employee_id = ?", (emp_id,))
-    db.commit()
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM employees WHERE id = %s", (emp_id,))
+    cursor.execute("DELETE FROM shifts WHERE employee_id = %s", (emp_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
     return jsonify({'success': True})
 
 @app.route('/api/shifts/<int:emp_id>', methods=['GET'])
 def get_shifts(emp_id):
-    db = get_db()
-    shifts = db.execute("SELECT * FROM shifts WHERE employee_id = ? ORDER BY date ASC", (emp_id,)).fetchall()
+    conn = get_db()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    cursor.execute("SELECT * FROM shifts WHERE employee_id = %s ORDER BY date ASC", (emp_id,))
+    shifts = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
     result = []
     today_str = datetime.now().strftime('%Y-%m-%d')
     
@@ -131,81 +169,100 @@ def get_shifts(emp_id):
 @app.route('/api/shifts/upsert', methods=['POST'])
 def upsert_shift():
     data = request.json
-    db = get_db()
-    
-    e1 = data.get('entry1', '-')
-    x1 = data.get('exit1', '-')
-    e2 = data.get('entry2', '-')
-    x2 = data.get('exit2', '-')
-    
-    # חישוב אוטומטי מוחלט בשרת כדי למנוע 0 או כשלים בדפדפן
-    calc_total = calc_hours(e1, x1) + calc_hours(e2, x2)
-    final_total = round(calc_total, 2) if calc_total > 0 else float(data.get('total_hours') or 0)
-    
-    db.execute("""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
         INSERT INTO shifts (employee_id, date, entry1, exit1, entry2, exit2, total_hours, notes) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(employee_id, date) DO UPDATE SET 
-        entry1=excluded.entry1, exit1=excluded.exit1, entry2=excluded.entry2, 
-        exit2=excluded.exit2, total_hours=excluded.total_hours, notes=excluded.notes
-    """, (data['employee_id'], data['date'], e1, x1, e2, x2, final_total, data.get('notes', '-')))
-    db.commit()
+        entry1=EXCLUDED.entry1, exit1=EXCLUDED.exit1, entry2=EXCLUDED.entry2, 
+        exit2=EXCLUDED.exit2, total_hours=EXCLUDED.total_hours, notes=EXCLUDED.notes
+    """, (data['employee_id'], data['date'], data['entry1'], data['exit1'], data['entry2'], data['exit2'], data['total_hours'], data.get('notes', '-')))
+    conn.commit()
+    cursor.close()
+    conn.close()
     return jsonify({'success': True})
 
 @app.route('/api/kiosk/punch', methods=['POST'])
 def kiosk_punch():
     data = request.json
     pin, action_type = data.get('pin'), data.get('action_type')
-    db = get_db()
-    emp = db.execute("SELECT * FROM employees WHERE pin_code = ?", (pin,)).fetchone()
+    conn = get_db()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    if not emp: return jsonify({'success': False, 'message': 'קוד PIN שגוי. אנא נסה שוב.'})
+    cursor.execute("SELECT * FROM employees WHERE pin_code = %s", (pin,))
+    emp = cursor.fetchone()
+    
+    if not emp: 
+        cursor.close()
+        conn.close()
+        return jsonify({'success': False, 'message': 'קוד PIN שגוי. אנא נסה שוב.'})
         
     today, time_now = datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%H:%M')
     action_name = ""
     
     if action_type == 'entry':
-        shift = db.execute("SELECT * FROM shifts WHERE employee_id = ? AND date = ?", (emp['id'], today)).fetchone()
+        cursor.execute("SELECT * FROM shifts WHERE employee_id = %s AND date = %s", (emp['id'], today))
+        shift = cursor.fetchone()
+        
         if not shift:
-            db.execute("INSERT INTO shifts (employee_id, date, entry1, exit1, entry2, exit2, total_hours, notes) VALUES (?, ?, ?, '-', '-', '-', 0, '-')", (emp['id'], today, time_now))
+            cursor.execute("INSERT INTO shifts (employee_id, date, entry1, exit1, entry2, exit2, total_hours, notes) VALUES (%s, %s, %s, '-', '-', '-', 0, '-')", (emp['id'], today, time_now))
             action_name = "כניסה 1"
         else:
             if shift['entry1'] == '-':
-                db.execute("UPDATE shifts SET entry1 = ? WHERE id = ?", (time_now, shift['id']))
+                cursor.execute("UPDATE shifts SET entry1 = %s WHERE id = %s", (time_now, shift['id']))
                 action_name = "כניסה 1"
             elif shift['entry1'] != '-' and shift['exit1'] != '-' and shift['entry2'] == '-':
-                db.execute("UPDATE shifts SET entry2 = ? WHERE id = ?", (time_now, shift['id']))
+                cursor.execute("UPDATE shifts SET entry2 = %s WHERE id = %s", (time_now, shift['id']))
                 action_name = "כניסה 2"
             elif shift['entry1'] != '-' and shift['exit1'] == '-':
+                cursor.close(); conn.close()
                 return jsonify({'success': False, 'message': 'אתה כבר נמצא במשמרת פעילה. עליך להחתים יציאה קודם.'})
             else:
+                cursor.close(); conn.close()
                 return jsonify({'success': False, 'message': 'השלמת את מכסת הכניסות שלך להיום.'})
                 
     elif action_type == 'exit':
-        shift = db.execute("SELECT * FROM shifts WHERE employee_id = ? AND (exit1 = '-' OR exit2 = '-') ORDER BY date DESC LIMIT 1", (emp['id'],)).fetchone()
+        cursor.execute("SELECT * FROM shifts WHERE employee_id = %s AND (exit1 = '-' OR exit2 = '-') ORDER BY date DESC LIMIT 1", (emp['id'],))
+        shift = cursor.fetchone()
+        
         if not shift:
-            shift = db.execute("SELECT * FROM shifts WHERE employee_id = ? AND date = ?", (emp['id'], today)).fetchone()
+            cursor.execute("SELECT * FROM shifts WHERE employee_id = %s AND date = %s", (emp['id'], today))
+            shift = cursor.fetchone()
             
-        if not shift: return jsonify({'success': False, 'message': 'לא נמצאה כניסה שלך למשמרת.'})
+        if not shift: 
+            cursor.close(); conn.close()
+            return jsonify({'success': False, 'message': 'לא נמצאה כניסה שלך למשמרת.'})
         else:
             new_exit1, new_exit2, target_id = shift['exit1'], shift['exit2'], shift['id']
             if shift['entry1'] != '-' and shift['exit1'] == '-': new_exit1, action_name = time_now, "יציאה 1"
             elif shift['entry2'] != '-' and shift['exit2'] == '-': new_exit2, action_name = time_now, "יציאה 2"
-            else: return jsonify({'success': False, 'message': 'אין לך משמרת פתוחה לצאת ממנה.'})
+            else: 
+                cursor.close(); conn.close()
+                return jsonify({'success': False, 'message': 'אין לך משמרת פתוחה לצאת ממנה.'})
             
             total = calc_hours(shift['entry1'], new_exit1) + calc_hours(shift['entry2'], new_exit2)
-            db.execute("UPDATE shifts SET exit1 = ?, exit2 = ?, total_hours = ? WHERE id = ?", (new_exit1, new_exit2, round(total, 2), target_id))
+            cursor.execute("UPDATE shifts SET exit1 = %s, exit2 = %s, total_hours = %s WHERE id = %s", (new_exit1, new_exit2, round(total, 2), target_id))
     
-    db.commit()
+    conn.commit()
+    cursor.close()
+    conn.close()
     return jsonify({'success': True, 'name': f"{emp['first_name']} {emp['last_name']}", 'action': action_name, 'time': time_now})
 
 @app.route('/api/dashboard', methods=['GET'])
 def dashboard_stats():
     if not session.get('logged_in'): return jsonify({'error': 'Unauthorized'}), 401
-    db = get_db()
     current_month, today_str = datetime.now().strftime('%Y-%m'), datetime.now().strftime('%Y-%m-%d')
-    emps = db.execute("SELECT id, department, first_name, last_name FROM employees").fetchall()
-    shifts = db.execute("SELECT * FROM shifts WHERE date LIKE ?", (f"{current_month}%",)).fetchall()
+    
+    conn = get_db()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    cursor.execute("SELECT id, department, first_name, last_name FROM employees")
+    emps = cursor.fetchall()
+    
+    cursor.execute("SELECT * FROM shifts WHERE date LIKE %s", (f"{current_month}%",))
+    shifts = cursor.fetchall()
+    cursor.close()
+    conn.close()
     
     w_count, m_count, w_hours, m_hours, anomalies_count = 0, 0, 0.0, 0.0, 0
     emp_hours_map = {e['id']: {'name': f"{e['first_name']} {e['last_name']}", 'hours': 0.0, 'dept': e['department']} for e in emps}
@@ -229,15 +286,19 @@ def dashboard_stats():
 
 @app.route('/api/schedule', methods=['GET', 'POST'])
 def handle_schedule():
-    db = get_db()
+    conn = get_db()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     if request.method == 'POST':
         if not session.get('logged_in'): return jsonify({'error': 'Unauthorized'}), 401
-        db.execute("DELETE FROM schedule")
-        db.execute("INSERT INTO schedule (matrix_json) VALUES (?)", (json.dumps(request.json.get('matrix')),))
-        db.commit()
+        cursor.execute("DELETE FROM schedule")
+        cursor.execute("INSERT INTO schedule (matrix_json) VALUES (%s)", (json.dumps(request.json.get('matrix')),))
+        conn.commit()
+        cursor.close(); conn.close()
         return jsonify({'success': True})
     else:
-        row = db.execute("SELECT matrix_json FROM schedule ORDER BY id DESC LIMIT 1").fetchone()
+        cursor.execute("SELECT matrix_json FROM schedule ORDER BY id DESC LIMIT 1")
+        row = cursor.fetchone()
+        cursor.close(); conn.close()
         if row: return jsonify({'matrix': json.loads(row['matrix_json'])})
         return jsonify({'matrix': [["תפקיד", "ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"], ["אחראי משמרת", "", "", "", "", "", "", ""]]})
 
@@ -247,8 +308,11 @@ def export_all_employees():
     month_filter = request.args.get('month')
     if not month_filter: return jsonify({'error': 'Month parameter is required'}), 400
         
-    db = get_db()
-    employees = db.execute("SELECT id, first_name, last_name, department, role FROM employees").fetchall()
+    conn = get_db()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    cursor.execute("SELECT id, first_name, last_name, department, role FROM employees")
+    employees = cursor.fetchall()
+    
     si = StringIO()
     si.write('\uFEFF')
     cw = csv.writer(si)
@@ -258,10 +322,13 @@ def export_all_employees():
     for emp in employees:
         emp_full_name = f"{emp['first_name']} {emp['last_name']}"
         translated_dept = dept_translations.get(emp['department'], emp['department'])
-        shifts = db.execute("SELECT date, entry1, exit1, entry2, exit2, total_hours, notes FROM shifts WHERE employee_id = ? AND date LIKE ? ORDER BY date ASC", (emp['id'], f"{month_filter}%")).fetchall()
+        cursor.execute("SELECT date, entry1, exit1, entry2, exit2, total_hours, notes FROM shifts WHERE employee_id = %s AND date LIKE %s ORDER BY date ASC", (emp['id'], f"{month_filter}%"))
+        shifts = cursor.fetchall()
         for s in shifts:
             cw.writerow([emp['id'], emp_full_name, translated_dept, emp['role'] or '-', s['date'], s['entry1'] if s['entry1'] != '-' else '', s['exit1'] if s['exit1'] != '-' else '', s['entry2'] if s['entry2'] != '-' else '', s['exit2'] if s['exit2'] != '-' else '', s['total_hours'], s['notes'] if s['notes'] != '-' else ''])
             
+    cursor.close()
+    conn.close()
     response = Response(si.getvalue(), mimetype='text/csv')
     response.headers["Content-Disposition"] = f"attachment; filename=all_employees_report_{month_filter}.csv"
     return response
