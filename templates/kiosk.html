@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>שעון נוכחות - קיוסק</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tippy.js@6/dist/tippy-bundle.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tippy.js@6/animations/scale.css"/>
+    <style>
+        body { background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); font-family: system-ui, -apple-system, sans-serif; }
+        .numpad-btn { transition: all 0.1s; user-select: none; }
+        .numpad-btn:active { transform: scale(0.95); background-color: #cbd5e1; }
+        .pin-dot { transition: all 0.2s; }
+        .pin-dot.filled { background-color: #3b82f6; transform: scale(1.2); }
+        .action-btn { transition: transform 0.2s, box-shadow 0.2s; }
+        .action-btn:active { transform: scale(0.96); box-shadow: none; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    
+    <div class="bg-white rounded-[2rem] shadow-2xl p-8 w-full max-w-md text-center border-t-8 border-blue-600 relative overflow-hidden">
+        <h1 class="text-3xl font-black text-slate-800 mb-1">עמדת החתמה</h1>
+        <div id="clock" class="text-4xl font-black text-blue-500 mb-6 tracking-wider font-mono bg-blue-50 py-3 rounded-2xl border border-blue-100">00:00:00</div>
+
+        <div id="screen-action" class="flex flex-col gap-5">
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-right text-slate-600 text-sm shadow-inner">
+                <h3 class="font-bold mb-2 text-slate-800"><i class="fa-solid fa-circle-info text-blue-500"></i> הנחיות:</h3>
+                <ul class="list-disc list-inside space-y-1 font-medium">
+                    <li>בחר את סוג הפעולה המבוקשת מהכפתורים מטה.</li>
+                    <li>במסך הבא תתבקש להזין קוד אישי.</li>
+                </ul>
+            </div>
+
+            <button onclick="selectAction('entry')" data-tippy-content="לחץ כאן כשאתה מתחיל משמרת או חוזר מהפסקה" class="action-btn bg-emerald-50 border-2 border-emerald-500 hover:bg-emerald-100 text-emerald-700 py-6 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-md">
+                <i class="fa-solid fa-arrow-right-to-bracket text-4xl"></i>
+                <span class="text-2xl font-black">כניסה למשמרת</span>
+            </button>
+            
+            <button onclick="selectAction('exit')" data-tippy-content="לחץ כאן כשאתה מסיים עבודה או יוצא להפסקה" class="action-btn bg-rose-50 border-2 border-rose-500 hover:bg-rose-100 text-rose-700 py-6 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-md">
+                <i class="fa-solid fa-arrow-right-from-bracket text-4xl"></i>
+                <span class="text-2xl font-black">יציאה ממשמרת</span>
+            </button>
+
+            <button onclick="selectAction('request')" data-tippy-content="הגש בקשה לזמינות/אי-זמינות למשמרת עתידית" class="action-btn bg-blue-50 border-2 border-blue-500 hover:bg-blue-100 text-blue-700 py-6 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-md">
+                <i class="fa-solid fa-calendar-plus text-4xl"></i>
+                <span class="text-2xl font-black">בקשת שיבוץ</span>
+            </button>
+        </div>
+
+        <div id="screen-pin" class="hidden">
+            <div class="flex justify-between items-center mb-6">
+                <button onclick="goBack()" class="text-slate-500 hover:text-slate-800 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg font-bold transition-colors">
+                    <i class="fa-solid fa-arrow-right"></i> חזור
+                </button>
+                <div id="action-title" class="text-lg font-bold px-4 py-1.5 rounded-full shadow-sm"></div>
+            </div>
+
+            <p class="text-slate-600 font-bold mb-4">נא להקיש קוד PIN אישי:</p>
+
+            <div class="flex justify-center gap-4 mb-6 h-8">
+                <div class="w-5 h-5 rounded-full bg-slate-200 pin-dot" id="dot-1"></div>
+                <div class="w-5 h-5 rounded-full bg-slate-200 pin-dot" id="dot-2"></div>
+                <div class="w-5 h-5 rounded-full bg-slate-200 pin-dot" id="dot-3"></div>
+                <div class="w-5 h-5 rounded-full bg-slate-200 pin-dot" id="dot-4"></div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3 mb-2" dir="ltr">
+                <button onclick="press('1')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">1</button>
+                <button onclick="press('2')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">2</button>
+                <button onclick="press('3')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">3</button>
+                <button onclick="press('4')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">4</button>
+                <button onclick="press('5')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">5</button>
+                <button onclick="press('6')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">6</button>
+                <button onclick="press('7')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">7</button>
+                <button onclick="press('8')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">8</button>
+                <button onclick="press('9')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">9</button>
+                <button onclick="clearPin()" class="numpad-btn bg-red-50 border border-red-200 text-red-500 text-xl font-bold h-20 rounded-2xl shadow-sm"><i class="fa-solid fa-xmark"></i></button>
+                <button onclick="press('0')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">0</button>
+                <button onclick="backspace()" class="numpad-btn bg-slate-100 border border-slate-200 text-slate-600 text-xl font-bold h-20 rounded-2xl shadow-sm"><i class="fa-solid fa-delete-left"></i></button>
+            </div>
+        </div>
+
+        <div id="screen-request-scope" class="hidden text-right">
+            <div class="flex justify-between items-center mb-6">
+                <button onclick="goBackFromRequest()" class="text-slate-500 hover:text-slate-800 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg font-bold transition-colors">
+                    <i class="fa-solid fa-arrow-right"></i> חזור
+                </button>
+                <div class="text-lg font-bold px-4 py-1.5 rounded-full shadow-sm bg-blue-100 text-blue-800 border border-blue-200">
+                    <i class="fa-solid fa-calendar-plus"></i> בקשת שיבוץ
+                </div>
+            </div>
+
+            <p id="request-scope-greeting" class="font-bold text-slate-700 mb-6"></p>
+            <p class="text-sm text-slate-500 mb-4">לאיזה טווח תרצה להגיש בקשה?</p>
+
+            <div class="grid grid-cols-1 gap-4">
+                <button type="button" onclick="chooseRequestScope('week')" class="action-btn bg-blue-50 border-2 border-blue-500 hover:bg-blue-100 text-blue-700 py-6 rounded-2xl flex items-center justify-center gap-3 shadow-md">
+                    <i class="fa-solid fa-calendar-week text-3xl"></i>
+                    <span class="text-xl font-black">בחירת יום בשבוע</span>
+                </button>
+                <button type="button" onclick="chooseRequestScope('month')" class="action-btn bg-purple-50 border-2 border-purple-500 hover:bg-purple-100 text-purple-700 py-6 rounded-2xl flex items-center justify-center gap-3 shadow-md">
+                    <i class="fa-solid fa-calendar-days text-3xl"></i>
+                    <span class="text-xl font-black">בחירת יום בחודש</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="screen-request" class="hidden text-right">
+            <div class="flex justify-between items-center mb-6">
+                <button onclick="goBackFromRequest()" class="text-slate-500 hover:text-slate-800 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg font-bold transition-colors">
+                    <i class="fa-solid fa-arrow-right"></i> חזור
+                </button>
+                <div class="text-lg font-bold px-4 py-1.5 rounded-full shadow-sm bg-blue-100 text-blue-800 border border-blue-200">
+                    <i class="fa-solid fa-calendar-plus"></i> בקשת שיבוץ
+                </div>
+            </div>
+
+            <p id="request-greeting" class="font-bold text-slate-700 mb-4"></p>
+            <p class="text-xs text-slate-400 mb-3"><i class="fa-solid fa-circle-info"></i> אפשר לבחור כמה ימים, ולכל יום להגדיר בנפרד אילו ארוחות וזמינות</p>
+
+            <div class="space-y-4">
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <button type="button" onclick="goToRequestScopeScreen()" class="text-xs text-blue-600 font-bold underline">שינוי טווח</button>
+                        <label class="text-sm font-bold text-slate-600">בחר ימים (אפשר כמה)</label>
+                    </div>
+                    <div class="flex items-center justify-between gap-2 mb-2 bg-slate-50 border border-slate-200 rounded-xl p-2">
+                        <button type="button" onclick="changeRequestRange(-1)" id="req-range-prev" class="w-9 h-9 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 font-bold flex items-center justify-center"><i class="fa-solid fa-chevron-right"></i></button>
+                        <span id="req-range-label" class="font-bold text-sm"></span>
+                        <button type="button" onclick="changeRequestRange(1)" id="req-range-next" class="w-9 h-9 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 font-bold flex items-center justify-center"><i class="fa-solid fa-chevron-left"></i></button>
+                    </div>
+                    <div id="req-days-container"></div>
+                </div>
+
+                <div id="req-day-cards" class="space-y-3"></div>
+
+                <div>
+                    <label class="block text-sm font-bold text-slate-600 mb-1">הערה (לא חובה, תחול על כל הימים שנבחרו)</label>
+                    <textarea id="req-note" rows="2" class="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500" placeholder="לדוגמה: אירוע משפחתי"></textarea>
+                </div>
+
+                <button onclick="submitShiftRequest()" class="action-btn w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black text-xl shadow-md">
+                    שליחת בקשה
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function safeTippy(selector, opts) {
+            if (typeof tippy === 'undefined') { console.warn('tippy.js לא נטען - התראות מידע (tooltips) לא יופיעו'); return; }
+            try { tippy(selector, opts); } catch(e) { console.warn('אתחול tippy נכשל', e); }
+        }
+        safeTippy('[data-tippy-content]', { animation: 'scale', theme: 'light-border', placement: 'bottom' });
+        let currentPin = '', selectedActionType = '', isProcessing = false, idleTimer;
+        let requestEmployeePin = '', requestEmployeeName = '';
+
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }, 1000);
+
+        function resetIdleTimer() {
+            clearTimeout(idleTimer);
+            const pinVisible = !document.getElementById('screen-pin').classList.contains('hidden');
+            const scopeVisible = !document.getElementById('screen-request-scope').classList.contains('hidden');
+            const reqVisible = !document.getElementById('screen-request').classList.contains('hidden');
+            if (pinVisible) {
+                idleTimer = setTimeout(() => { goBack(); }, 15000);
+            } else if (scopeVisible || reqVisible) {
+                idleTimer = setTimeout(() => { goBackFromRequest(); }, 60000);
+            }
+        }
+
+        function selectAction(type) {
+            if(isProcessing) return;
+            selectedActionType = type;
+            document.getElementById('screen-action').classList.add('hidden');
+            document.getElementById('screen-pin').classList.remove('hidden');
+            const titleEl = document.getElementById('action-title');
+            if (type === 'entry') {
+                titleEl.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> כניסה';
+                titleEl.className = "text-lg font-bold px-4 py-1.5 rounded-full shadow-sm bg-emerald-100 text-emerald-800 border border-emerald-200";
+            } else if (type === 'exit') {
+                titleEl.innerHTML = '<i class="fa-solid fa-arrow-right-from-bracket"></i> יציאה';
+                titleEl.className = "text-lg font-bold px-4 py-1.5 rounded-full shadow-sm bg-rose-100 text-rose-800 border border-rose-200";
+            } else {
+                titleEl.innerHTML = '<i class="fa-solid fa-calendar-plus"></i> בקשת שיבוץ';
+                titleEl.className = "text-lg font-bold px-4 py-1.5 rounded-full shadow-sm bg-blue-100 text-blue-800 border border-blue-200";
+            }
+            clearPin();
+            resetIdleTimer();
+        }
+
+        function goBack() {
+            if (isProcessing) return;
+            document.getElementById('screen-pin').classList.add('hidden');
+            document.getElementById('screen-action').classList.remove('hidden');
+            clearPin();
+            clearTimeout(idleTimer);
+        }
+
+        function goBackFromRequest() {
+            if (isProcessing) return;
+            document.getElementById('screen-request-scope').classList.add('hidden');
+            document.getElementById('screen-request').classList.add('hidden');
+            document.getElementById('screen-action').classList.remove('hidden');
+            requestEmployeePin = '';
+            requestEmployeeName = '';
+            selectedRequestDays = {};
+            requestScope = null;
+            requestWeekOffset = 0;
+            requestMonthOffset = 0;
+            clearTimeout(idleTimer);
+        }
+
+        function goToRequestScopeScreen() {
+            document.getElementById('screen-request').classList.add('hidden');
+            document.getElementById('screen-request-scope').classList.remove('hidden');
+            document.getElementById('request-scope-greeting').innerText = `שלום ${requestEmployeeName}, בחר טווח לבקשה:`;
+            resetIdleTimer();
+        }
+
+        // =======================================================
+        // בקשות שיבוץ - בחירת מספר ימים (שבוע/חודש עם דפדוף), וכרטיס
+        // הגדרות נפרד לכל יום שנבחר: אילו ארוחות ומה הזמינות בכל אחת
+        // =======================================================
+        let requestScope = null;      // 'week' | 'month'
+        let requestWeekOffset = 0;    // 0 = השבוע הנוכחי, 1 = השבוע הבא וכו'
+        let requestMonthOffset = 0;   // 0 = החודש הנוכחי, 1 = החודש הבא וכו'
+        const REQUEST_WEEK_OFFSET_MAX = 8;   // עד כ-2 חודשים קדימה בדפדוף שבועי
+        const REQUEST_MONTH_OFFSET_MAX = 2;  // עד חודשיים קדימה (סה"כ 3 חודשים כולל הנוכחי) בדפדוף חודשי
+        const requestDayNames = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
+        const REQUEST_MEALS = [
+            { key: 'breakfast', label: 'בוקר' },
+            { key: 'lunch', label: 'צהריים' },
+            { key: 'dinner', label: 'ערב' }
+        ];
+
+        // Map: dateStr -> { type: 'available'|'unavailable', meals: { breakfast:bool, lunch:bool, dinner:bool } }
+        let selectedRequestDays = {};
+
+        function toDateStr(d) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function chooseRequestScope(scope) {
+            requestScope = scope;
+            requestWeekOffset = 0;
+            requestMonthOffset = 0;
+            selectedRequestDays = {};
+            document.getElementById('screen-request-scope').classList.add('hidden');
+            document.getElementById('screen-request').classList.remove('hidden');
+            document.getElementById('request-greeting').innerText = `שלום ${requestEmployeeName}, מלא את פרטי הבקשה:`;
+            renderRequestDayPicker();
+            renderDayCards();
+            resetIdleTimer();
+        }
+
+        function changeRequestRange(delta) {
+            if (requestScope === 'week') {
+                const next = requestWeekOffset + delta;
+                if (next < 0 || next > REQUEST_WEEK_OFFSET_MAX) return;
+                requestWeekOffset = next;
+            } else {
+                const next = requestMonthOffset + delta;
+                if (next < 0 || next > REQUEST_MONTH_OFFSET_MAX) return;
+                requestMonthOffset = next;
+            }
+            renderRequestDayPicker();
+        }
+
+        function renderRequestDayPicker() {
+            const prevBtn = document.getElementById('req-range-prev');
+            const nextBtn = document.getElementById('req-range-next');
+
+            if (requestScope === 'week') {
+                prevBtn.disabled = requestWeekOffset <= 0;
+                nextBtn.disabled = requestWeekOffset >= REQUEST_WEEK_OFFSET_MAX;
+                renderRequestWeekDays();
+            } else {
+                prevBtn.disabled = requestMonthOffset <= 0;
+                nextBtn.disabled = requestMonthOffset >= REQUEST_MONTH_OFFSET_MAX;
+                renderRequestMonthDays();
+            }
+
+            [prevBtn, nextBtn].forEach(btn => {
+                btn.classList.toggle('opacity-30', btn.disabled);
+                btn.classList.toggle('cursor-not-allowed', btn.disabled);
+            });
+        }
+
+        function dayButtonClass(dateStr, isPast, isMonthView) {
+            const shape = isMonthView ? "rounded-lg py-2 text-sm" : "rounded-xl py-2";
+            if (isPast) return `req-day-btn border ${isMonthView ? '' : 'border-2'} border-slate-100 bg-slate-50 text-slate-300 ${shape} font-bold cursor-not-allowed`;
+            if (selectedRequestDays[dateStr]) return `req-day-btn border-2 border-blue-600 bg-blue-50 text-blue-700 ${shape} font-bold`;
+            return `req-day-btn border ${isMonthView ? '' : 'border-2'} border-slate-200 bg-white text-slate-600 ${shape} font-bold`;
+        }
+
+        function renderRequestWeekDays() {
+            const today = new Date();
+            const sunday = new Date(today);
+            sunday.setDate(today.getDate() - today.getDay() + (requestWeekOffset * 7));
+
+            const container = document.getElementById('req-days-container');
+            container.innerHTML = '<div class="grid grid-cols-4 gap-2" id="req-week-days"></div>';
+            const grid = document.getElementById('req-week-days');
+
+            const lastDay = new Date(sunday);
+            lastDay.setDate(sunday.getDate() + 6);
+            document.getElementById('req-range-label').innerText =
+                `${sunday.getDate()}/${sunday.getMonth() + 1} - ${lastDay.getDate()}/${lastDay.getMonth() + 1}`;
+
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(sunday);
+                d.setDate(sunday.getDate() + i);
+                const dateStr = toDateStr(d);
+                const isPast = dateStr < toDateStr(today);
+
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.id = `req-day-${dateStr}`;
+                btn.disabled = isPast;
+                btn.className = dayButtonClass(dateStr, isPast, false);
+                btn.innerHTML = `<div class="text-sm">${requestDayNames[d.getDay()]}</div><div class="text-lg">${d.getDate()}/${d.getMonth() + 1}</div>`;
+                if (!isPast) btn.onclick = () => toggleRequestDay(dateStr, d);
+                grid.appendChild(btn);
+            }
+        }
+
+        function renderRequestMonthDays() {
+            const today = new Date();
+            const targetMonth = new Date(today.getFullYear(), today.getMonth() + requestMonthOffset, 1);
+            const year = targetMonth.getFullYear();
+            const month = targetMonth.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const firstDow = targetMonth.getDay();
+
+            const monthNames = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
+            document.getElementById('req-range-label').innerText = `${monthNames[month]} ${year}`;
+
+            const container = document.getElementById('req-days-container');
+            container.innerHTML = `
+                <div class="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-400 mb-1">
+                    ${requestDayNames.map(n => `<div>${n[0]}</div>`).join('')}
+                </div>
+                <div class="grid grid-cols-7 gap-1" id="req-month-days"></div>
+            `;
+            const grid = document.getElementById('req-month-days');
+
+            for (let i = 0; i < firstDow; i++) {
+                grid.appendChild(document.createElement('div'));
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const d = new Date(year, month, day);
+                const dateStr = toDateStr(d);
+                const isPast = dateStr < toDateStr(today);
+
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.id = `req-day-${dateStr}`;
+                btn.disabled = isPast;
+                btn.className = dayButtonClass(dateStr, isPast, true);
+                btn.innerText = day;
+                if (!isPast) btn.onclick = () => toggleRequestDay(dateStr, d);
+                grid.appendChild(btn);
+            }
+        }
+
+        // הוספה/הסרה של יום מתוך רשימת הימים הנבחרים - ברירת מחדל: זמין לכל הארוחות
+        function toggleRequestDay(dateStr, dateObj) {
+            if (selectedRequestDays[dateStr]) {
+                delete selectedRequestDays[dateStr];
+            } else {
+                selectedRequestDays[dateStr] = {
+                    type: 'available',
+                    meals: { breakfast: true, lunch: true, dinner: true },
+                    dow: dateObj.getDay()
+                };
+            }
+
+            const btn = document.getElementById(`req-day-${dateStr}`);
+            if (btn) btn.className = dayButtonClass(dateStr, false, requestScope === 'month');
+
+            renderDayCards();
+        }
+
+        function removeRequestDay(dateStr) {
+            delete selectedRequestDays[dateStr];
+            const btn = document.getElementById(`req-day-${dateStr}`);
+            if (btn) btn.className = dayButtonClass(dateStr, false, requestScope === 'month');
+            renderDayCards();
+        }
+
+        function setDayType(dateStr, type) {
+            if (!selectedRequestDays[dateStr]) return;
+            selectedRequestDays[dateStr].type = type;
+            renderDayCards();
+        }
+
+        function toggleDayMeal(dateStr, mealKey) {
+            const day = selectedRequestDays[dateStr];
+            if (!day) return;
+            day.meals[mealKey] = !day.meals[mealKey];
+            renderDayCards();
+        }
+
+        function renderDayCards() {
+            const container = document.getElementById('req-day-cards');
+            const dates = Object.keys(selectedRequestDays).sort();
+
+            if (!dates.length) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = dates.map(dateStr => {
+                const day = selectedRequestDays[dateStr];
+                const d = new Date(dateStr);
+                const dow = d.getDay();
+                const dateLabel = `${requestDayNames[dow]} ${d.getDate()}/${d.getMonth() + 1}`;
+
+                const mealButtons = REQUEST_MEALS.map(m => {
+                    const on = day.meals[m.key];
+                    const cls = on
+                        ? "flex-1 border-2 border-blue-500 bg-blue-50 text-blue-700 rounded-lg py-2 text-xs font-bold"
+                        : "flex-1 border border-slate-200 bg-white text-slate-400 rounded-lg py-2 text-xs font-bold";
+                    return `<button type="button" onclick="toggleDayMeal('${dateStr}','${m.key}')" class="${cls}">${m.label}</button>`;
+                }).join('');
+
+                const availCls = day.type === 'available'
+                    ? "flex-1 border-2 border-emerald-500 bg-emerald-50 text-emerald-700 rounded-lg py-1.5 text-xs font-bold"
+                    : "flex-1 border border-slate-200 bg-white text-slate-400 rounded-lg py-1.5 text-xs font-bold";
+                const unavailCls = day.type === 'unavailable'
+                    ? "flex-1 border-2 border-rose-500 bg-rose-50 text-rose-700 rounded-lg py-1.5 text-xs font-bold"
+                    : "flex-1 border border-slate-200 bg-white text-slate-400 rounded-lg py-1.5 text-xs font-bold";
+
+                return `
+                    <div class="border border-slate-200 rounded-xl p-3 bg-slate-50">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-bold text-slate-700">${dateLabel}</span>
+                            <button type="button" onclick="removeRequestDay('${dateStr}')" class="text-rose-500 hover:text-rose-700 text-sm"><i class="fa-solid fa-circle-xmark"></i> הסר</button>
+                        </div>
+                        <div class="flex gap-2 mb-2">
+                            <button type="button" onclick="setDayType('${dateStr}','available')" class="${availCls}">זמין</button>
+                            <button type="button" onclick="setDayType('${dateStr}','unavailable')" class="${unavailCls}">לא זמין</button>
+                        </div>
+                        <div class="flex gap-2">${mealButtons}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function submitShiftRequest() {
+            if (isProcessing) return;
+
+            const dates = Object.keys(selectedRequestDays);
+            if (!dates.length) {
+                Swal.fire('שגיאה', 'נא לבחור לפחות יום אחד', 'error');
+                return;
+            }
+
+            // בונים בקשה אחת לכל (יום, ארוחה) שסומנה; אם כל שלוש הארוחות מסומנות עבור יום מסוים,
+            // שולחים בקשה מרוכזת אחת עם "כל היום" במקום שלוש בקשות נפרדות
+            const note = document.getElementById('req-note').value.trim();
+            const payloads = [];
+            let hasEmptyDay = false;
+
+            dates.forEach(dateStr => {
+                const day = selectedRequestDays[dateStr];
+                const activeMeals = REQUEST_MEALS.filter(m => day.meals[m.key]).map(m => m.key);
+
+                if (!activeMeals.length) { hasEmptyDay = true; return; }
+
+                if (activeMeals.length === 3) {
+                    payloads.push({ pin: requestEmployeePin, date: dateStr, meal: 'all', request_type: day.type, note });
+                } else {
+                    activeMeals.forEach(mealKey => {
+                        payloads.push({ pin: requestEmployeePin, date: dateStr, meal: mealKey, request_type: day.type, note });
+                    });
+                }
+            });
+
+            if (hasEmptyDay) {
+                Swal.fire('שגיאה', 'יש יום שנבחר בלי אף ארוחה מסומנת - נא לסמן לפחות ארוחה אחת בכל יום, או להסיר אותו', 'error');
+                return;
+            }
+
+            isProcessing = true;
+            clearTimeout(idleTimer);
+
+            Promise.all(payloads.map(payload =>
+                fetch('/api/kiosk/shift_request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).then(r => r.json())
+            ))
+            .then(results => {
+                const failed = results.filter(r => !r.success);
+                const successName = (results.find(r => r.success) || {}).name || requestEmployeeName;
+
+                if (!failed.length) {
+                    Swal.fire({
+                        title: `תודה, ${successName}`,
+                        text: `${payloads.length} בקשות שיבוץ נשלחו ויבדקו על ידי המנהל`,
+                        icon: 'success',
+                        timer: 3000,
+                        showConfirmButton: false
+                    }).then(() => {
+                        isProcessing = false;
+                        document.getElementById('req-note').value = '';
+                        selectedRequestDays = {};
+                        goBackFromRequest();
+                    });
+                } else {
+                    Swal.fire('שגיאה חלקית', `${payloads.length - failed.length} מתוך ${payloads.length} בקשות נשלחו בהצלחה. נסה שוב עבור השאר.`, 'warning').then(() => {
+                        isProcessing = false;
+                    });
+                }
+            })
+            .catch(() => {
+                Swal.fire('תקלה', 'לא ניתן להתחבר לשרת. ודא שהמערכת מחוברת.', 'error').then(() => {
+                    isProcessing = false;
+                });
+            });
+        }
+
+        function updateDots() {
+            for (let i = 1; i <= 4; i++) {
+                const dot = document.getElementById(`dot-${i}`);
+                if (i <= currentPin.length) dot.classList.add('filled');
+                else dot.classList.remove('filled');
+            }
+        }
+
+        function press(digit) {
+            resetIdleTimer();
+            if (isProcessing || currentPin.length >= 4) return;
+            currentPin += digit;
+            updateDots();
+            if (currentPin.length === 4) submitPin(); 
+        }
+
+        function clearPin() {
+            resetIdleTimer();
+            if (isProcessing) return;
+            currentPin = '';
+            updateDots();
+        }
+
+        function backspace() {
+            resetIdleTimer();
+            if (isProcessing || currentPin.length === 0) return;
+            currentPin = currentPin.slice(0, -1);
+            updateDots();
+        }
+
+        function submitPin() {
+            if(isProcessing) return;
+            isProcessing = true;
+            clearTimeout(idleTimer);
+
+            if (selectedActionType === 'request') {
+                fetch('/api/kiosk/validate_pin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin: currentPin })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    isProcessing = false;
+                    if (data.success) {
+                        requestEmployeePin = currentPin;
+                        requestEmployeeName = data.name;
+                        document.getElementById('screen-pin').classList.add('hidden');
+                        document.getElementById('screen-request-scope').classList.remove('hidden');
+                        document.getElementById('request-scope-greeting').innerText = `שלום ${data.name}, בחר טווח לבקשה:`;
+                        clearPin();
+                        resetIdleTimer();
+                    } else {
+                        Swal.fire({
+                            title: 'שגיאה',
+                            text: data.message,
+                            icon: 'error',
+                            timer: 3000,
+                            showConfirmButton: true,
+                            confirmButtonText: 'הבנתי'
+                        }).then(() => { goBack(); });
+                    }
+                })
+                .catch(() => {
+                    Swal.fire('תקלה', 'לא ניתן להתחבר לשרת. ודא שהמערכת מחוברת.', 'error').then(() => {
+                        isProcessing = false;
+                        goBack();
+                    });
+                });
+                return;
+            }
+
+            fetch('/api/kiosk/punch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pin: currentPin, action_type: selectedActionType })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    let iconType = data.action.includes('כניסה') ? 'success' : 'info';
+                    Swal.fire({
+                        title: `שלום, ${data.name}`,
+                        html: `<div class="text-3xl mt-2 font-black ${selectedActionType === 'entry' ? 'text-emerald-600' : 'text-rose-600'}">${data.action} התקבלה</div>
+                               <div class="text-lg mt-2 text-slate-500 font-bold">השעה: ${data.time}</div>`,
+                        icon: iconType,
+                        timer: 2500, 
+                        showConfirmButton: false,
+                        backdrop: `rgba(0,0,0,0.4)`
+                    }).then(() => {
+                        isProcessing = false;
+                        goBack(); 
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'שגיאה',
+                        text: data.message,
+                        icon: 'error',
+                        timer: 3500,
+                        showConfirmButton: true,
+                        confirmButtonText: 'הבנתי'
+                    }).then(() => {
+                        isProcessing = false;
+                        goBack(); 
+                    });
+                }
+            })
+            .catch(err => {
+                Swal.fire('תקלה', 'לא ניתן להתחבר לשרת. ודא שהמערכת מחוברת.', 'error').then(() => {
+                    isProcessing = false;
+                    goBack();
+                });
+            });
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (document.getElementById('screen-pin').classList.contains('hidden')) return;
+            if (e.key >= '0' && e.key <= '9') press(e.key);
+            if (e.key === 'Backspace') backspace();
+            if (e.key === 'Escape' || e.key === 'Delete') clearPin();
+        });
+    </script>
+</body>
+</html>
