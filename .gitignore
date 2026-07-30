@@ -1,0 +1,19 @@
+# Environments
+.env
+.venv
+env/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Database and Secrets
+*.sqlite3
+*.db
+secrets.json
+
+# IDEs
+.vscode/
+.idea/

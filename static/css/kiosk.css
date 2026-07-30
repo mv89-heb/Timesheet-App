@@ -1,0 +1,32 @@
+body { 
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); 
+    font-family: system-ui, -apple-system, sans-serif; 
+}
+
+.numpad-btn { 
+    transition: all 0.1s; 
+    user-select: none; 
+}
+
+.numpad-btn:active { 
+    transform: scale(0.95); 
+    background-color: #cbd5e1; 
+}
+
+.pin-dot { 
+    transition: all 0.2s; 
+}
+
+.pin-dot.filled { 
+    background-color: #3b82f6; 
+    transform: scale(1.2); 
+}
+
+.action-btn { 
+    transition: transform 0.2s, box-shadow 0.2s; 
+}
+
+.action-btn:active { 
+    transform: scale(0.96); 
+    box-shadow: none; 
+}

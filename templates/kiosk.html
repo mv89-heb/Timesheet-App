@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>שעון נוכחות - קיוסק</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tippy.js@6/dist/tippy-bundle.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tippy.js@6/animations/scale.css"/>
+    
+    <!-- ייבוא קובץ העיצוב המופרד -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/kiosk.css') }}">
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    
+    <div class="bg-white rounded-[2rem] shadow-2xl p-8 w-full max-w-md text-center border-t-8 border-blue-600 relative overflow-hidden">
+        <h1 class="text-3xl font-black text-slate-800 mb-1">עמדת החתמה</h1>
+        <div id="clock" class="text-4xl font-black text-blue-500 mb-6 tracking-wider font-mono bg-blue-50 py-3 rounded-2xl border border-blue-100">00:00:00</div>
+
+        <div id="screen-action" class="flex flex-col gap-5">
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-right text-slate-600 text-sm shadow-inner">
+                <h3 class="font-bold mb-2 text-slate-800"><i class="fa-solid fa-circle-info text-blue-500"></i> הנחיות:</h3>
+                <ul class="list-disc list-inside space-y-1 font-medium">
+                    <li>בחר את סוג הפעולה המבוקשת מהכפתורים מטה.</li>
+                    <li>במסך הבא תתבקש להזין קוד אישי.</li>
+                </ul>
+            </div>
+
+            <button onclick="selectAction('entry')" data-tippy-content="לחץ כאן כשאתה מתחיל משמרת או חוזר מהפסקה" class="action-btn bg-emerald-50 border-2 border-emerald-500 hover:bg-emerald-100 text-emerald-700 py-6 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-md">
+                <i class="fa-solid fa-arrow-right-to-bracket text-4xl"></i>
+                <span class="text-2xl font-black">כניסה למשמרת</span>
+            </button>
+            
+            <button onclick="selectAction('exit')" data-tippy-content="לחץ כאן כשאתה מסיים עבודה או יוצא להפסקה" class="action-btn bg-rose-50 border-2 border-rose-500 hover:bg-rose-100 text-rose-700 py-6 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-md">
+                <i class="fa-solid fa-arrow-right-from-bracket text-4xl"></i>
+                <span class="text-2xl font-black">יציאה ממשמרת</span>
+            </button>
+
+            <button onclick="selectAction('request')" data-tippy-content="הגש בקשה לזמינות/אי-זמינות למשמרת עתידית" class="action-btn bg-blue-50 border-2 border-blue-500 hover:bg-blue-100 text-blue-700 py-6 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-md">
+                <i class="fa-solid fa-calendar-plus text-4xl"></i>
+                <span class="text-2xl font-black">בקשת שיבוץ</span>
+            </button>
+        </div>
+
+        <div id="screen-pin" class="hidden">
+            <div class="flex justify-between items-center mb-6">
+                <button onclick="goBack()" class="text-slate-500 hover:text-slate-800 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg font-bold transition-colors">
+                    <i class="fa-solid fa-arrow-right"></i> חזור
+                </button>
+                <div id="action-title" class="text-lg font-bold px-4 py-1.5 rounded-full shadow-sm"></div>
+            </div>
+
+            <p class="text-slate-600 font-bold mb-4">נא להקיש קוד PIN אישי:</p>
+
+            <div class="flex justify-center gap-4 mb-6 h-8">
+                <div class="w-5 h-5 rounded-full bg-slate-200 pin-dot" id="dot-1"></div>
+                <div class="w-5 h-5 rounded-full bg-slate-200 pin-dot" id="dot-2"></div>
+                <div class="w-5 h-5 rounded-full bg-slate-200 pin-dot" id="dot-3"></div>
+                <div class="w-5 h-5 rounded-full bg-slate-200 pin-dot" id="dot-4"></div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3 mb-2" dir="ltr">
+                <button onclick="press('1')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">1</button>
+                <button onclick="press('2')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">2</button>
+                <button onclick="press('3')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">3</button>
+                <button onclick="press('4')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">4</button>
+                <button onclick="press('5')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">5</button>
+                <button onclick="press('6')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">6</button>
+                <button onclick="press('7')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">7</button>
+                <button onclick="press('8')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">8</button>
+                <button onclick="press('9')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">9</button>
+                <button onclick="clearPin()" class="numpad-btn bg-red-50 border border-red-200 text-red-500 text-xl font-bold h-20 rounded-2xl shadow-sm"><i class="fa-solid fa-xmark"></i></button>
+                <button onclick="press('0')" class="numpad-btn bg-slate-50 border border-slate-200 text-3xl font-bold text-slate-700 h-20 rounded-2xl shadow-sm">0</button>
+                <button onclick="backspace()" class="numpad-btn bg-slate-100 border border-slate-200 text-slate-600 text-xl font-bold h-20 rounded-2xl shadow-sm"><i class="fa-solid fa-delete-left"></i></button>
+            </div>
+        </div>
+
+        <div id="screen-domain" class="hidden text-right">
+            <div class="flex justify-between items-center mb-6">
+                <button onclick="goBackFromDomain()" class="text-slate-500 hover:text-slate-800 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg font-bold transition-colors">
+                    <i class="fa-solid fa-arrow-right"></i> חזור
+                </button>
+                <div class="text-lg font-bold px-4 py-1.5 rounded-full shadow-sm bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    <i class="fa-solid fa-arrow-right-to-bracket"></i> כניסה למשמרת
+                </div>
+            </div>
+            <p id="domain-greeting" class="font-bold text-slate-700 mb-2"></p>
+            <p class="text-sm text-slate-500 mb-4">באיזה תחום אתה מתחיל לעבוד עכשיו?</p>
+            <div id="domain-buttons" class="grid grid-cols-1 gap-3"></div>
+        </div>
+
+        <div id="screen-request-scope" class="hidden text-right">
+            <div class="flex justify-between items-center mb-6">
+                <button onclick="goBackFromRequest()" class="text-slate-500 hover:text-slate-800 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg font-bold transition-colors">
+                    <i class="fa-solid fa-arrow-right"></i> חזור
+                </button>
+                <div class="text-lg font-bold px-4 py-1.5 rounded-full shadow-sm bg-blue-100 text-blue-800 border border-blue-200">
+                    <i class="fa-solid fa-calendar-plus"></i> בקשת שיבוץ
+                </div>
+            </div>
+            <p id="request-scope-greeting" class="font-bold text-slate-700 mb-6"></p>
+            <p class="text-sm text-slate-500 mb-4">לאיזה טווח תרצה להגיש בקשה?</p>
+            <div class="grid grid-cols-1 gap-4">
+                <button type="button" onclick="chooseRequestScope('week')" class="action-btn bg-blue-50 border-2 border-blue-500 hover:bg-blue-100 text-blue-700 py-6 rounded-2xl flex items-center justify-center gap-3 shadow-md">
+                    <i class="fa-solid fa-calendar-week text-3xl"></i>
+                    <span class="text-xl font-black">בחירת יום בשבוע</span>
+                </button>
+                <button type="button" onclick="chooseRequestScope('month')" class="action-btn bg-purple-50 border-2 border-purple-500 hover:bg-purple-100 text-purple-700 py-6 rounded-2xl flex items-center justify-center gap-3 shadow-md">
+                    <i class="fa-solid fa-calendar-days text-3xl"></i>
+                    <span class="text-xl font-black">בחירת יום בחודש</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="screen-request" class="hidden text-right">
+            <div class="flex justify-between items-center mb-6">
+                <button onclick="goBackFromRequest()" class="text-slate-500 hover:text-slate-800 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg font-bold transition-colors">
+                    <i class="fa-solid fa-arrow-right"></i> חזור
+                </button>
+                <div class="text-lg font-bold px-4 py-1.5 rounded-full shadow-sm bg-blue-100 text-blue-800 border border-blue-200">
+                    <i class="fa-solid fa-calendar-plus"></i> בקשת שיבוץ
+                </div>
+            </div>
+
+            <p id="request-greeting" class="font-bold text-slate-700 mb-4"></p>
+            <p class="text-xs text-slate-400 mb-3"><i class="fa-solid fa-circle-info"></i> אפשר לבחור כמה ימים, ולכל יום להגדיר בנפרד אילו ארוחות וזמינות</p>
+
+            <div class="space-y-4">
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <button type="button" onclick="goToRequestScopeScreen()" class="text-xs text-blue-600 font-bold underline">שינוי טווח</button>
+                        <label class="text-sm font-bold text-slate-600">בחר ימים (אפשר כמה)</label>
+                    </div>
+                    <div class="flex items-center justify-between gap-2 mb-2 bg-slate-50 border border-slate-200 rounded-xl p-2">
+                        <button type="button" onclick="changeRequestRange(-1)" id="req-range-prev" class="w-9 h-9 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 font-bold flex items-center justify-center"><i class="fa-solid fa-chevron-right"></i></button>
+                        <span id="req-range-label" class="font-bold text-sm"></span>
+                        <button type="button" onclick="changeRequestRange(1)" id="req-range-next" class="w-9 h-9 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 font-bold flex items-center justify-center"><i class="fa-solid fa-chevron-left"></i></button>
+                    </div>
+                    <div id="req-days-container"></div>
+                </div>
+
+                <div id="req-day-cards" class="space-y-3"></div>
+
+                <div>
+                    <label class="block text-sm font-bold text-slate-600 mb-1">הערה (לא חובה, תחול על כל הימים שנבחרו)</label>
+                    <textarea id="req-note" rows="2" class="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500" placeholder="לדוגמה: אירוע משפחתי"></textarea>
+                </div>
+
+                <button onclick="submitShiftRequest()" class="action-btn w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black text-xl shadow-md">
+                    שליחת בקשה
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ייבוא לוגיקת ה-JS המופרדת -->
+    <script src="{{ url_for('static', filename='js/kiosk.js') }}"></script>
+</body>
+</html>
