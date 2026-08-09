@@ -1,10 +1,26 @@
 let myChart = null, allEmployees = [], empDataMap = {}, currentShiftsMap = {}, currentEmpId = null, currentEmpName = "";
 const dayNames = ['א\'', 'ב\'', 'ג\'', 'ד\'', 'ה\'', 'ו\'', 'שבת'];
-let currentScheduleLastModified = 0; // התיקון למניעת דריסות
+let currentScheduleLastModified = 0; 
 
 function escapeHTML(str) {
     if (!str) return '';
     return String(str).replace(/[&<>'"]/g, match => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[match]));
+}
+
+// === Smart Buttons UX (Loading State) ===
+async function withBtnLoading(btn, promiseFn) {
+    if (!btn) return promiseFn();
+    const origWidth = btn.offsetWidth;
+    const origHtml = btn.innerHTML;
+    btn.style.width = origWidth + 'px';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    btn.disabled = true;
+    btn.classList.add('btn-loading');
+    try { await promiseFn(); } 
+    finally {
+        btn.innerHTML = origHtml; btn.disabled = false;
+        btn.classList.remove('btn-loading'); btn.style.width = '';
+    }
 }
 
 function formatTimeInput(el) {
@@ -73,23 +89,17 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function performLogin() { 
-    const payload = {
-        password: document.getElementById('login-password').value,
-        phone: document.getElementById('login-password').value,
-        pin: document.getElementById('login-password').value
-    };
-    fetch('/api/login', {
-        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
-    }).then(r => r.json()).then(res => {
-        if(res.success) {
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('main-app').classList.remove('hidden'); document.getElementById('main-app').classList.add('flex');
-            startPolling();
-            switchTab('dashboard'); loadDomains(); loadEmployees(); refreshRequestsBadge(); loadTimeCorrections();
-        } else {
-            Swal.fire('שגיאה', 'פרטי התחברות שגויים', 'error');
-        }
-    }).catch(() => Swal.fire('שגיאה', 'בעיית תקשורת. בדוק חיבור לשרת.', 'error')); 
+    const payload = { password: document.getElementById('login-password').value, phone: document.getElementById('login-password').value, pin: document.getElementById('login-password').value };
+    const btn = document.getElementById('login-btn');
+    withBtnLoading(btn, () => fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) })
+        .then(r => r.json()).then(res => {
+            if(res.success) {
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('main-app').classList.remove('hidden'); document.getElementById('main-app').classList.add('flex');
+                startPolling(); switchTab('dashboard'); loadDomains(); loadEmployees(); refreshRequestsBadge(); loadTimeCorrections();
+            } else { Swal.fire('שגיאה', 'פרטי התחברות שגויים', 'error'); }
+        }).catch(() => Swal.fire('שגיאה', 'בעיית תקשורת. בדוק חיבור לשרת.', 'error'))
+    ); 
 }
 
 function performLogout() { fetch('/api/logout', {method:'POST'}).then(() => { window.location.href = '/?refresh=' + new Date().getTime(); }); }
@@ -112,14 +122,11 @@ function switchTab(tabId) {
 }
 
 // ----------------- DASHBOARD -----------------
-
 const LIVE_SHIFT_WARNING_HOURS = 10;
 let mainPollInterval = null;
 let liveTimerInterval = null;
 
-function skeletonBlocks(count, heightClass) {
-    return Array.from({ length: count }).map(() => `<div class="animate-pulse bg-slate-100 dark:bg-slate-700/50 rounded-xl ${heightClass}"></div>`).join('');
-}
+function skeletonBlocks(count, heightClass) { return Array.from({ length: count }).map(() => `<div class="animate-pulse bg-slate-100 dark:bg-slate-700/50 rounded-xl ${heightClass}"></div>`).join(''); }
 
 function renderDashboardSkeleton() {
     const health = document.getElementById('dash-health-strip'); if (health && !health.dataset.loaded) health.innerHTML = skeletonBlocks(4, 'h-16');
@@ -130,22 +137,16 @@ function renderDashboardSkeleton() {
 
 function elapsedSinceEntry(entryTime) {
     if (!entryTime) return null;
-    const [h, mnt] = entryTime.split(':').map(Number);
-    if (isNaN(h) || isNaN(mnt)) return null;
-    const now = new Date();
-    let diffMinutes = (now.getHours() * 60 + now.getMinutes()) - (h * 60 + mnt);
+    const [h, mnt] = entryTime.split(':').map(Number); if (isNaN(h) || isNaN(mnt)) return null;
+    const now = new Date(); let diffMinutes = (now.getHours() * 60 + now.getMinutes()) - (h * 60 + mnt);
     if (diffMinutes < 0) diffMinutes += 24 * 60;
     return { text: `${String(Math.floor(diffMinutes / 60)).padStart(2, '0')}:${String(diffMinutes % 60).padStart(2, '0')}`, hours: diffMinutes / 60 };
 }
 
 function updateLiveTimers() {
     document.querySelectorAll('[data-live-entry]').forEach(el => {
-        const elapsed = elapsedSinceEntry(el.dataset.liveEntry);
-        if (!elapsed) return;
-        el.textContent = elapsed.text;
-        const warn = elapsed.hours >= LIVE_SHIFT_WARNING_HOURS;
-        el.classList.toggle('text-rose-600', warn); el.classList.toggle('dark:text-rose-400', warn);
-        el.classList.toggle('text-emerald-600', !warn); el.classList.toggle('dark:text-emerald-400', !warn);
+        const elapsed = elapsedSinceEntry(el.dataset.liveEntry); if (!elapsed) return; el.textContent = elapsed.text;
+        const warn = elapsed.hours >= LIVE_SHIFT_WARNING_HOURS; el.classList.toggle('text-rose-600', warn); el.classList.toggle('dark:text-rose-400', warn); el.classList.toggle('text-emerald-600', !warn); el.classList.toggle('dark:text-emerald-400', !warn);
     });
 }
 
@@ -158,7 +159,7 @@ function loadDashboard() {
             healthContainer.innerHTML = `
                 <div class="bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl p-3 flex items-center gap-3">
                     <i class="fa-solid fa-tower-broadcast text-emerald-500 text-xl"></i>
-                    <div><div class="text-2xl font-black">${d.live_employees ? d.live_employees.length : 0}</div><div class="text-[11px] text-slate-400 font-bold">עובדים פעילים כרגע</div></div>
+                    <div><div class="text-2xl font-black">${d.live_employees ? d.live_employees.length : 0}</div><div class="text-[11px] text-slate-400 font-bold">פעילים כרגע</div></div>
                 </div>
                 <div class="bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl p-3 flex items-center gap-3">
                     <i class="fa-solid fa-hourglass-half text-rose-500 text-xl"></i>
@@ -166,11 +167,11 @@ function loadDashboard() {
                 </div>
                 <div class="bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl p-3 flex items-center gap-3">
                     <i class="fa-solid fa-inbox text-blue-500 text-xl"></i>
-                    <div><div class="text-2xl font-black">${d.action_center.pending_requests}</div><div class="text-[11px] text-slate-400 font-bold">בקשות שיבוץ ממתינות</div></div>
+                    <div><div class="text-2xl font-black">${d.action_center.pending_requests}</div><div class="text-[11px] text-slate-400 font-bold">שיבוצים ממתינים</div></div>
                 </div>
                 <div class="bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl p-3 flex items-center gap-3">
                     <i class="fa-solid fa-clock-rotate-left text-amber-500 text-xl"></i>
-                    <div><div class="text-2xl font-black">${d.action_center.pending_corrections}</div><div class="text-[11px] text-slate-400 font-bold">תיקוני שעות ממתינים</div></div>
+                    <div><div class="text-2xl font-black">${d.action_center.pending_corrections}</div><div class="text-[11px] text-slate-400 font-bold">תיקונים ממתינים</div></div>
                 </div>
             `;
         }
@@ -197,9 +198,8 @@ function loadDashboard() {
         const liveContainer = document.getElementById('live-employees-list');
         if (liveContainer) {
             liveContainer.dataset.loaded = '1';
-            if (!d.live_employees || d.live_employees.length === 0) {
-                liveContainer.innerHTML = '<div class="text-center py-8 text-slate-400 text-sm"><i class="fa-solid fa-mug-hot text-2xl mb-2 block"></i>אין עובדים מחוברים כרגע.</div>';
-            } else {
+            if (!d.live_employees || d.live_employees.length === 0) { liveContainer.innerHTML = '<div class="text-center py-8 text-slate-400 text-sm"><i class="fa-solid fa-mug-hot text-2xl mb-2 block"></i>אין עובדים מחוברים כרגע.</div>'; } 
+            else {
                 liveContainer.innerHTML = d.live_employees.map(emp => {
                     const elapsed = elapsedSinceEntry(emp.entry_time);
                     return `
@@ -227,7 +227,7 @@ function loadDashboard() {
                     <div class="flex justify-between items-start"><span class="text-slate-500 font-bold text-sm">שעות ${dom.name}</span><i class="${icons[i % icons.length]}" style="color:${dom.color}"></i></div>
                     <div class="text-3xl font-black mt-2" style="color:${dom.color}">${dom.hours}</div>
                     <div class="text-[10px] text-slate-400 mt-2 space-y-0.5 border-t dark:border-slate-700 pt-2">
-                        <div><i class="fa-solid fa-user-check"></i> ${dom.active_employees_count} עבדו בפועל החודש (מתוך ${dom.employees_count} משויכים)</div>
+                        <div><i class="fa-solid fa-user-check"></i> ${dom.active_employees_count} עבדו בפועל (מתוך ${dom.employees_count} משויכים)</div>
                         <div><i class="fa-solid fa-calculator"></i> ממוצע ${dom.avg_hours_per_employee} שעות/עובד</div>
                     </div>
                 </div>
@@ -238,14 +238,9 @@ function loadDashboard() {
         if (forecastNote) {
             if (d.forecast) {
                 forecastNote.classList.remove('hidden');
-                forecastNote.innerHTML = `<i class="fa-solid fa-chart-line"></i> <b>תחזית לסוף החודש (הערכה):</b> כ-${d.forecast.hours} שעות וכ-${d.forecast.shifts} משמרות סה"כ
-                    <span class="cursor-help text-slate-400" data-tippy-content="חושב לפי הקצב היומי הממוצע עד כה: ${d.total_hours} שעות ב-${d.forecast.days_elapsed} ימים שחלפו, מוקרן על ${d.forecast.days_in_month} ימים בחודש. זו הערכה בלבד ולא מספר סופי.">
-                        <i class="fa-solid fa-circle-info"></i>
-                    </span>`;
+                forecastNote.innerHTML = `<i class="fa-solid fa-chart-line"></i> <b>תחזית (הערכה):</b> כ-${d.forecast.hours} שעות סה"כ <span class="cursor-help text-slate-400" data-tippy-content="מוקרן לפי קצב נוכחי"><i class="fa-solid fa-circle-info"></i></span>`;
                 safeTippy('[data-tippy-content]', { allowHTML: false, theme: 'light-border' });
-            } else {
-                forecastNote.classList.add('hidden');
-            }
+            } else { forecastNote.classList.add('hidden'); }
         }
 
         const skelH = document.getElementById('hoursChart-skeleton'); if (skelH) skelH.classList.add('hidden');
@@ -269,16 +264,9 @@ function loadDashboardTrend() {
         const skelT = document.getElementById('trendChart-skeleton'); if (skelT) skelT.classList.add('hidden');
         document.getElementById('trendChart').classList.remove('hidden');
         const ctx = document.getElementById('trendChart').getContext('2d');
-        const opts = {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false }, tooltip: { rtl: true, callbacks: { label: (item) => `${item.parsed.y} שעות` } } },
-            scales: { y: { beginAtZero: true } }
-        };
-        if (trendChart) {
-            trendChart.data.labels = d.months; trendChart.data.datasets[0].data = d.total_hours; trendChart.update();
-        } else {
-            trendChart = new Chart(ctx, { type: 'line', data: { labels: d.months, datasets: [{ label: 'שעות עבודה', data: d.total_hours, borderColor: '#6366f1', backgroundColor: '#6366f122', fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#6366f1' }] }, options: opts });
-        }
+        const opts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { rtl: true, callbacks: { label: (item) => `${item.parsed.y} שעות` } } }, scales: { y: { beginAtZero: true } } };
+        if (trendChart) { trendChart.data.labels = d.months; trendChart.data.datasets[0].data = d.total_hours; trendChart.update(); } 
+        else { trendChart = new Chart(ctx, { type: 'line', data: { labels: d.months, datasets: [{ label: 'שעות עבודה', data: d.total_hours, borderColor: '#6366f1', backgroundColor: '#6366f122', fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#6366f1' }] }, options: opts }); }
     });
 }
 
@@ -309,8 +297,21 @@ function loadEmployees() {
         const datalist = document.getElementById('employee-names-list'); datalist.innerHTML = '';
         emps.forEach(e => { empDataMap[e.id] = e; datalist.innerHTML += `<option value="${escapeHTML(e.name)}">`; });
         renderEmployees(emps);
+        renderDraggableEmployees(emps); // הוספה לפס גרירת העובדים
         if (!document.getElementById('content-pins').classList.contains('hidden')) renderPinsTable();
     });
+}
+
+// בניית פס העובדים הניתנים לגרירה בלוח השיבוץ
+function renderDraggableEmployees(emps) {
+    const container = document.getElementById('draggable-employees-bar'); if (!container) return;
+    const activeEmps = emps.filter(e => e.is_active).sort((a,b) => a.name.localeCompare(b.name));
+    container.innerHTML = activeEmps.map(emp => {
+        const c = domainColor(emp.department);
+        return `<div draggable="true" ondragstart="event.dataTransfer.setData('text/plain', '${escapeHTML(emp.name)}')" class="draggable-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border bg-white dark:bg-slate-800" style="border-color:${c}; color:${c}">
+            <i class="fa-solid fa-grip-vertical opacity-40"></i> ${escapeHTML(emp.name)}
+        </div>`;
+    }).join('') || '<span class="text-xs text-slate-400">אין עובדים פעילים במערכת</span>';
 }
 
 function populateEmpDeptDropdown() {
@@ -318,7 +319,6 @@ function populateEmpDeptDropdown() {
     select.innerHTML = allDomains.filter(d => d.active || d.name === current).map(d => `<option value="${d.name}">${d.name}${!d.active ? ' (מבוטל)' : ''}</option>`).join('');
     if (current) select.value = current;
 }
-
 function domainColor(name) { const d = allDomains.find(x => x.name === name); return d ? d.color : '#94a3b8'; }
 function filterEmployees() { renderEmployees(allEmployees.filter(e => e.name.toLowerCase().includes(document.getElementById('emp-search').value.toLowerCase()))); }
 
@@ -351,7 +351,7 @@ function openEmpModal(id) {
     if(id){
         const emp = empDataMap[id]; if(!emp) return;
         document.getElementById('emp-edit-id').value = emp.id;
-        document.getElementById('emp-modal-title').innerHTML = '<i class="fa-solid fa-user-pen"></i> עריכת פרטי עובד';
+        document.getElementById('emp-modal-title').innerHTML = '<i class="fa-solid fa-user-pen"></i> עריכת עובד';
         document.getElementById('emp-submit-btn').textContent = 'עדכן פרטים';
         const nameParts = (emp.name || '').trim().split(' ');
         document.getElementById('emp-fname').value = nameParts[0] || ''; document.getElementById('emp-lname').value = nameParts.slice(1).join(' ') || '';
@@ -362,7 +362,7 @@ function openEmpModal(id) {
         document.getElementById('emp-active').checked = emp.is_active !== false;
     } else {
         document.getElementById('emp-edit-id').value = '';
-        document.getElementById('emp-modal-title').innerHTML = '<i class="fa-solid fa-user-plus"></i> הוספת עובד חדש';
+        document.getElementById('emp-modal-title').innerHTML = '<i class="fa-solid fa-user-plus"></i> הוספת עובד';
         document.getElementById('emp-submit-btn').textContent = 'שמור';
     }
     document.getElementById('emp-modal').classList.remove('hidden');
@@ -377,14 +377,17 @@ document.getElementById('emp-form').onsubmit = e => {
         role: document.getElementById('emp-role').value, permission_level: document.getElementById('emp-permission').value,
         is_active: document.getElementById('emp-active').checked
     };
-    fetch(editId ? `/api/employees/${editId}` : '/api/employees', { method: editId ? 'PUT' : 'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) })
-    .then(r => r.json()).then(res => {
-        if(res.success) {
-            document.getElementById('emp-modal').classList.add('hidden'); loadEmployees();
-            if(editId){ showSuccessToast('הפרטים עודכנו'); if(currentEmpId == editId) loadShiftsForGrid(parseInt(editId), payload.first_name + ' ' + payload.last_name); } 
-            else { showSuccessToast('עובד נוסף בהצלחה', `קוד גישה KIOSK: <b class="text-2xl text-blue-600 block mt-1">${res.pin}</b>`, 6000); }
-        } else { Swal.fire('שגיאה', res.error || 'הפעולה נכשלה', 'error'); }
-    }).catch(() => Swal.fire('שגיאה', 'בעיית תקשורת', 'error'));
+    
+    withBtnLoading(document.getElementById('emp-submit-btn'), () => 
+        fetch(editId ? `/api/employees/${editId}` : '/api/employees', { method: editId ? 'PUT' : 'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) })
+        .then(r => r.json()).then(res => {
+            if(res.success) {
+                document.getElementById('emp-modal').classList.add('hidden'); loadEmployees();
+                if(editId){ showSuccessToast('הפרטים עודכנו'); if(currentEmpId == editId) loadShiftsForGrid(parseInt(editId), payload.first_name + ' ' + payload.last_name); } 
+                else { showSuccessToast('עובד נוסף בהצלחה', `קוד גישה KIOSK: <b class="text-2xl text-blue-600 block mt-1">${res.pin}</b>`, 6000); }
+            } else { Swal.fire('שגיאה', res.error || 'הפעולה נכשלה', 'error'); }
+        }).catch(() => Swal.fire('שגיאה', 'בעיית תקשורת', 'error'))
+    );
 };
 
 function deleteEmp(id, name) {
@@ -417,16 +420,13 @@ function fetchMonthShifts(empId, monthVal) {
         shifts.forEach(s => { currentShiftsMap[s.date] = s; });
     });
 }
-
 function fetchDayIfMissing(dateStr) {
     if (currentShiftsMap[dateStr]) return Promise.resolve(currentShiftsMap[dateStr]);
     const monthOfDate = dateStr.slice(0, 7);
     return fetch(`/api/shifts/${currentEmpId}?month=${monthOfDate}`, { cache: 'no-store' }).then(r => r.json()).then(shifts => {
-        shifts.forEach(s => { currentShiftsMap[s.date] = s; });
-        return currentShiftsMap[dateStr] || null;
+        shifts.forEach(s => { currentShiftsMap[s.date] = s; }); return currentShiftsMap[dateStr] || null;
     });
 }
-
 function fetchDayFresh(dateStr) {
     const monthOfDate = dateStr.slice(0, 7);
     return fetch(`/api/shifts/${currentEmpId}?month=${monthOfDate}`, { cache: 'no-store' }).then(r => r.json()).then(shifts => {
@@ -441,8 +441,7 @@ function loadHebrewCalendarForMonth(monthVal) {
 }
 
 function onMonthPickerChange() {
-    if (!currentEmpId) return;
-    pendingCopySegments = {}; renderHoursSkeleton();
+    if (!currentEmpId) return; pendingCopySegments = {}; renderHoursSkeleton();
     const monthVal = document.getElementById('month-picker').value;
     Promise.all([fetchMonthShifts(currentEmpId, monthVal), loadHebrewCalendarForMonth(monthVal)]).then(renderHoursView);
 }
@@ -543,6 +542,29 @@ function renderMonthTable() {
     safeTippy('[data-tippy-content]', { allowHTML: true, theme: 'light-border' });
 }
 
+// יצירת ציר הזמן הוויזואלי למשמרות (Timeline)
+function generateTimelineHtml(segments) {
+    if (!segments || segments.length === 0) return '';
+    let barsHtml = '';
+    segments.forEach(seg => {
+        if (!seg.entry || !seg.exit) return;
+        const t2d = (t) => { const [h, m] = t.split(':').map(Number); return h + m / 60; };
+        let start = t2d(seg.entry), end = t2d(seg.exit);
+        if (end < start) end += 24; 
+        const left = (start / 24) * 100; const width = ((end - start) / 24) * 100;
+        
+        if (left + width > 100) {
+            barsHtml += `<div class="absolute h-full rounded-full opacity-80" style="background-color:${seg.domain_color || '#3b82f6'}; left: ${left}%; width: ${100 - left}%" title="${seg.entry}-${seg.exit}"></div>`;
+            barsHtml += `<div class="absolute h-full rounded-full opacity-80" style="background-color:${seg.domain_color || '#3b82f6'}; left: 0%; width: ${(left + width) - 100}%" title="${seg.entry}-${seg.exit} (למחרת)"></div>`;
+        } else {
+            barsHtml += `<div class="absolute h-full rounded-full opacity-80" style="background-color:${seg.domain_color || '#3b82f6'}; left: ${left}%; width: ${width}%" title="${seg.entry}-${seg.exit}"></div>`;
+        }
+    });
+    if (!barsHtml) return '';
+    return `<div class="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full relative mt-3 mb-1 overflow-hidden" dir="ltr">${barsHtml}</div>
+            <div class="flex justify-between text-[8px] text-slate-400 font-bold" dir="ltr"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>`;
+}
+
 function renderMonthGrid() {
     if (!currentEmpId) return; const monthVal = document.getElementById('month-picker').value; if (!monthVal) return;
     const [year, month] = monthVal.split('-'); const daysInMonth = new Date(year, month, 0).getDate();
@@ -578,6 +600,9 @@ function buildDayCardElement(dateStr) {
     const warningIcon = isAnomaly ? `<span class="cursor-pointer text-red-500 hover:text-red-700" data-tippy-content="<div class='text-right'><b>⚠️ חריגות שזוהו:</b><br>${warningsArray.join('<br>')}</div>" data-tippy-allowHTML="true"><i class="fa-solid fa-circle-exclamation animate-pulse"></i></span>` : '';
     const pendingBadge = isPending ? `<span class="text-[10px] font-bold bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">ממתין לאישור</span>` : '';
     const segRows = (filteredSegments.length ? filteredSegments : [emptySegment()]).map(seg => renderSegmentRow(dateStr, seg)).join('');
+    
+    // יצירת ציר הזמן
+    const timeline = generateTimelineHtml(filteredSegments);
 
     const card = document.createElement('div'); card.id = `day-card-${dateStr}`; card.className = `border rounded-xl p-3 transition-shadow ${cardClass}`;
     card.innerHTML = `<div class="flex items-center justify-between flex-wrap gap-2 mb-2">
@@ -599,7 +624,9 @@ function buildDayCardElement(dateStr) {
                 <button onclick="addSegmentRow('${dateStr}')" class="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-2 py-1 rounded-lg font-bold hover:bg-blue-100"><i class="fa-solid fa-plus"></i> משמרת</button>
             `}
         </div>
-    </div><div class="space-y-1.5" data-day-segments="${dateStr}">${segRows}</div>`;
+    </div>
+    ${timeline}
+    <div class="space-y-1.5 mt-2" data-day-segments="${dateStr}">${segRows}</div>`;
     return card;
 }
 
@@ -612,7 +639,6 @@ function renderSegmentRow(dateStr, seg) {
     const originalRaw = JSON.stringify({ domain_id: seg.domain_id != null ? String(seg.domain_id) : '', entry: seg.entry || '', exit: seg.exit || '', total_hours: seg.total_hours || '', notes: seg.notes || '' });
     const original = originalRaw.replace(/'/g, '&#39;');
     
-    // מעבר לשדות טקסט והכנסת ה-ID (תיקון באגים)
     return `<div class="flex flex-wrap items-start gap-2 bg-slate-50 dark:bg-slate-700/40 rounded-lg p-2 transition-shadow" data-segment-row data-id="${seg.id || ''}" data-source="${seg.source || 'manual'}" data-original='${original}'>
         ${sourceBadgeHtml(seg.source || 'manual')}
         <select class="grid-input w-32" data-field="domain_id" onchange="onSegmentFieldChange(this, '${dateStr}')" onkeydown="onSegmentFieldKeydown(event, '${dateStr}')">${domainOptions}</select>
@@ -871,7 +897,7 @@ function loadTimeCorrections() {
         .then(r => r.json()).then(list => {
             if(!tbody) return;
             if (!Array.isArray(list) || !list.length) {
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-12 text-slate-400">אין בקשות תיקון שעות לחודש זה.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-12 text-slate-400" data-label="הודעה">אין בקשות תיקון שעות לחודש זה.</td></tr>';
                 refreshCorrectionsBadge(0); return;
             }
             const statusLabels = { pending: 'ממתין', approved: 'אושר', rejected: 'נדחה' };
@@ -879,17 +905,17 @@ function loadTimeCorrections() {
             
             tbody.innerHTML = list.map(req => `
                 <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/40 border-b dark:border-slate-700">
-                    <td class="p-3 font-bold">${escapeHTML(req.first_name)} ${escapeHTML(req.last_name)}</td>
-                    <td class="p-3">${req.date}</td>
-                    <td class="p-3 font-medium">${req.domain_name || '-'}</td>
-                    <td class="p-3 font-bold text-indigo-600" dir="ltr">${req.entry_time} - ${req.exit_time}</td>
-                    <td class="p-3 text-slate-500 max-w-xs truncate" title="${escapeHTML(req.reason) || ''}">${escapeHTML(req.reason) || '-'}</td>
-                    <td class="p-3"><span class="px-2 py-1 rounded-full text-xs font-bold ${statusColors[req.status] || ''}">${statusLabels[req.status] || req.status}</span></td>
+                    <td data-label="עובד" class="p-3 font-bold">${escapeHTML(req.first_name)} ${escapeHTML(req.last_name)}</td>
+                    <td data-label="תאריך" class="p-3">${req.date}</td>
+                    <td data-label="תחום" class="p-3 font-medium">${req.domain_name || '-'}</td>
+                    <td data-label="שעות" class="p-3 font-bold text-indigo-600" dir="ltr">${req.entry_time} - ${req.exit_time}</td>
+                    <td data-label="סיבה" class="p-3 text-slate-500 max-w-xs truncate" title="${escapeHTML(req.reason) || ''}">${escapeHTML(req.reason) || '-'}</td>
+                    <td data-label="סטטוס" class="p-3"><span class="px-2 py-1 rounded-full text-xs font-bold ${statusColors[req.status] || ''}">${statusLabels[req.status] || req.status}</span></td>
                     <td class="p-3">
                         <div class="flex gap-1">
                             ${req.status === 'pending' ? `
-                                <button onclick="handleCorrection(${req.id}, 'approved')" title="אשר וצור משמרת" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-3 py-1.5 rounded text-xs font-bold"><i class="fa-solid fa-check"></i> אשר</button>
-                                <button onclick="handleCorrection(${req.id}, 'rejected')" title="דחה בקשה" class="bg-rose-100 hover:bg-rose-200 text-rose-700 px-3 py-1.5 rounded text-xs font-bold"><i class="fa-solid fa-xmark"></i> דחה</button>
+                                <button onclick="handleCorrection(this, ${req.id}, 'approved')" title="אשר וצור משמרת" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-3 py-1.5 rounded text-xs font-bold transition"><i class="fa-solid fa-check"></i> אשר</button>
+                                <button onclick="handleCorrection(this, ${req.id}, 'rejected')" title="דחה בקשה" class="bg-rose-100 hover:bg-rose-200 text-rose-700 px-3 py-1.5 rounded text-xs font-bold transition"><i class="fa-solid fa-xmark"></i> דחה</button>
                             ` : '-'}
                         </div>
                     </td>
@@ -899,12 +925,14 @@ function loadTimeCorrections() {
         });
 }
 
-function handleCorrection(id, status) {
-    fetch(`/api/time_corrections/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
-    .then(r => r.json()).then(res => {
-        if (res.success) { showSuccessToast('הבקשה עודכנה בהצלחה'); loadTimeCorrections(); loadDashboard(); }
-        else Swal.fire('שגיאה', res.error || 'הפעולה נכשלה', 'error');
-    });
+function handleCorrection(btnEl, id, status) {
+    withBtnLoading(btnEl, () => 
+        fetch(`/api/time_corrections/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+        .then(r => r.json()).then(res => {
+            if (res.success) { showSuccessToast('הבקשה עודכנה בהצלחה'); loadTimeCorrections(); loadDashboard(); }
+            else Swal.fire('שגיאה', res.error || 'הפעולה נכשלה', 'error');
+        })
+    );
 }
 
 function refreshCorrectionsBadge(count) {
@@ -983,7 +1011,6 @@ function triggerAutoSave() {
 function loadSchedule() { 
     const monthVal = document.getElementById('schedule-month-picker').value; currentScheduleWeekIndex = null;
     
-    // בדיקת טיוטה שלא נשמרה ושחזור במידת הצורך
     const draftRaw = localStorage.getItem('schedule_draft');
     if (draftRaw) {
         try {
@@ -992,42 +1019,22 @@ function loadSchedule() {
                 Swal.fire({
                     title: 'שחזור טיוטת שיבוץ',
                     text: 'נמצאו שינויים מהפעם הקודמת שלא נשמרו. האם תרצה לשחזר אותם למסך או למחוק ולטעון את הלוח מהשרת?',
-                    icon: 'question',
-                    showCancelButton: true,
-                    confirmButtonText: 'שחזר טיוטה',
-                    cancelButtonText: 'מחק וטען מהשרת',
-                    confirmButtonColor: '#3b82f6',
-                    cancelButtonColor: '#dc2626'
+                    icon: 'question', showCancelButton: true, confirmButtonText: 'שחזר טיוטה', cancelButtonText: 'מחק וטען', confirmButtonColor: '#3b82f6', cancelButtonColor: '#dc2626'
                 }).then(res => {
                     if (res.isConfirmed) {
                         Promise.all([fetch(`/api/hebrew_calendar?month=${monthVal}`, { cache: 'no-store' }).then(r=>r.json()).catch(() => ({ days: {} })), loadScheduleAvailabilityMap(monthVal)])
-                        .then(([heb]) => { 
-                            currentScheduleHebrewCalendar = heb.days || {}; 
-                            renderScheduleTable(draft.matrix, draft.mealTimes || {}); 
-                            applyAvailabilityBadges(); 
-                            document.getElementById('unsaved-badge').classList.remove('hidden'); 
-                        });
-                    } else {
-                        localStorage.removeItem('schedule_draft');
-                        fetchFromServer();
-                    }
+                        .then(([heb]) => { currentScheduleHebrewCalendar = heb.days || {}; renderScheduleTable(draft.matrix, draft.mealTimes || {}); applyAvailabilityBadges(); document.getElementById('unsaved-badge').classList.remove('hidden'); });
+                    } else { localStorage.removeItem('schedule_draft'); fetchFromServer(); }
                 });
                 return;
             }
         } catch(e) {}
     }
-    
     fetchFromServer();
 
     function fetchFromServer() {
         Promise.all([ fetch(`/api/schedule?month=${monthVal}`, { cache: 'no-store' }).then(r=>r.json()), fetch(`/api/hebrew_calendar?month=${monthVal}`, { cache: 'no-store' }).then(r=>r.json()).catch(() => ({ days: {} })), loadScheduleAvailabilityMap(monthVal) ])
-        .then(([d, heb]) => { 
-            currentScheduleHebrewCalendar = heb.days || {}; 
-            currentScheduleLastModified = d.last_modified || 0;
-            renderScheduleTable(d.matrix, d.mealTimes || {}); 
-            applyAvailabilityBadges(); 
-            document.getElementById('unsaved-badge').classList.add('hidden'); 
-        }); 
+        .then(([d, heb]) => { currentScheduleHebrewCalendar = heb.days || {}; currentScheduleLastModified = d.last_modified || 0; renderScheduleTable(d.matrix, d.mealTimes || {}); applyAvailabilityBadges(); document.getElementById('unsaved-badge').classList.add('hidden'); }); 
     }
 }
 
@@ -1109,19 +1116,19 @@ function renderShiftRequestsTable() {
     const tbody = document.getElementById('requests-table-tbody'); if (!tbody) return; tbody.innerHTML = '';
     updateRequestsCounts();
     const filteredRequests = allShiftRequests.filter(req => { if (currentRequestStatusFilter === 'all') return true; return req.status === currentRequestStatusFilter; });
-    if (!filteredRequests.length) { tbody.innerHTML = '<tr><td colspan="8" class="text-center py-12 text-slate-400">אין בקשות בסטטוס זה.</td></tr>'; return; }
+    if (!filteredRequests.length) { tbody.innerHTML = '<tr><td colspan="8" class="text-center py-12 text-slate-400" data-label="הודעה">אין בקשות בסטטוס זה.</td></tr>'; return; }
 
     const statusLabels = { pending: 'ממתין', approved: 'אושר', rejected: 'נדחה' }, statusColors = { pending: 'bg-amber-100 text-amber-800', approved: 'bg-emerald-100 text-emerald-800', rejected: 'bg-slate-200 text-slate-600' }, typeColors = { available: 'bg-emerald-50 text-emerald-700 border border-emerald-300', unavailable: 'bg-rose-50 text-rose-700 border border-rose-300' };
 
     [...filteredRequests].sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(req => {
         const tr = document.createElement('tr'); tr.className = req.has_conflict ? 'request-row-conflict' : 'hover:bg-slate-50 dark:hover:bg-slate-700/40';
-        tr.innerHTML = `<td class="p-3 font-bold">${escapeHTML(req.employee_name)}</td><td class="p-3">${req.date}</td><td class="p-3">${req.meal_label}</td><td class="p-3"><span class="px-2 py-1 rounded-full text-xs font-bold ${typeColors[req.request_type] || ''}">${req.request_type_label}</span></td><td class="p-3 text-slate-500 max-w-xs truncate" title="${escapeHTML(req.note)}">${escapeHTML(req.note) || '-'}</td><td class="p-3"><span class="px-2 py-1 rounded-full text-xs font-bold ${statusColors[req.status] || ''}">${statusLabels[req.status] || req.status}</span></td><td class="p-3">${req.has_conflict ? `<span class="request-conflict-badge inline-flex items-center gap-1 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full" title="${(req.conflict_reasons || []).join(' | ')}"><i class="fa-solid fa-triangle-exclamation"></i> התנגשות</span>` : '<span class="text-slate-300">-</span>'}</td><td class="p-3"><div class="flex gap-1 flex-wrap"><button onclick="jumpToScheduleFromRequest('${req.date}')" title="עבור לשיבוץ" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-calendar-days"></i></button>${req.status !== 'approved' ? `<button onclick="setShiftRequestStatus(${req.id}, 'approved')" title="אשר" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-check"></i> אשר</button>` : ''}${req.status !== 'rejected' ? `<button onclick="setShiftRequestStatus(${req.id}, 'rejected')" title="דחה" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-xmark"></i> דחה</button>` : ''}<button onclick="deleteShiftRequest(${req.id})" title="מחק" class="bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-trash"></i></button></div></td>`;
+        tr.innerHTML = `<td data-label="עובד" class="p-3 font-bold">${escapeHTML(req.employee_name)}</td><td data-label="תאריך" class="p-3">${req.date}</td><td data-label="ארוחה" class="p-3">${req.meal_label}</td><td data-label="סוג בקשה" class="p-3"><span class="px-2 py-1 rounded-full text-xs font-bold ${typeColors[req.request_type] || ''}">${req.request_type_label}</span></td><td data-label="הערה" class="p-3 text-slate-500 max-w-xs truncate" title="${escapeHTML(req.note)}">${escapeHTML(req.note) || '-'}</td><td data-label="סטטוס" class="p-3"><span class="px-2 py-1 rounded-full text-xs font-bold ${statusColors[req.status] || ''}">${statusLabels[req.status] || req.status}</span></td><td data-label="התנגשות" class="p-3">${req.has_conflict ? `<span class="request-conflict-badge inline-flex items-center gap-1 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full" title="${(req.conflict_reasons || []).join(' | ')}"><i class="fa-solid fa-triangle-exclamation"></i> התנגשות</span>` : '<span class="text-slate-300">-</span>'}</td><td class="p-3"><div class="flex gap-1 flex-wrap"><button onclick="jumpToScheduleFromRequest('${req.date}')" title="עבור לשיבוץ" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded text-xs font-bold transition"><i class="fa-solid fa-calendar-days"></i></button>${req.status !== 'approved' ? `<button onclick="setShiftRequestStatus(this, ${req.id}, 'approved')" title="אשר" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-2 py-1 rounded text-xs font-bold transition"><i class="fa-solid fa-check"></i></button>` : ''}${req.status !== 'rejected' ? `<button onclick="setShiftRequestStatus(this, ${req.id}, 'rejected')" title="דחה" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded text-xs font-bold transition"><i class="fa-solid fa-xmark"></i></button>` : ''}<button onclick="deleteShiftRequest(this, ${req.id})" title="מחק" class="bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded text-xs font-bold transition"><i class="fa-solid fa-trash"></i></button></div></td>`;
         tbody.appendChild(tr);
     });
 }
 
-function setShiftRequestStatus(id, status) {
-    fetch(`/api/shift_requests/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+function setShiftRequestStatus(btnEl, id, status) {
+    withBtnLoading(btnEl, () => fetch(`/api/shift_requests/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
     .then(r => r.json()).then(res => {
         if (res.success) {
             loadShiftRequests(); loadDashboard();
@@ -1129,10 +1136,16 @@ function setShiftRequestStatus(id, status) {
         } else if (res.conflict) {
             Swal.fire({ icon: 'warning', title: 'לא שובץ עקב התנגשות', html: `<div class="text-right text-sm">${res.message || 'קיימת התנגשות.'}<br><br><b>הבקשה נשארה ממתינה</b> (לא סומנה כמאושרת) עד שהתנגשות תיפתר.</div>`, confirmButtonText: 'הבנתי', confirmButtonColor: '#d97706' });
         } else Swal.fire('שגיאה', res.error || 'הפעולה נכשלה', 'error');
-    });
+    }));
 }
 
-function deleteShiftRequest(id) { Swal.fire({ title: 'למחוק?', icon: 'warning', showCancelButton: true, confirmButtonText: 'מחק', confirmButtonColor: '#dc2626' }).then(res => { if (res.isConfirmed) fetch(`/api/shift_requests/${id}`, { method: 'DELETE' }).then(r => r.json()).then(result => { if (result.success) loadShiftRequests(); }); }); }
+function deleteShiftRequest(btnEl, id) { 
+    Swal.fire({ title: 'למחוק?', icon: 'warning', showCancelButton: true, confirmButtonText: 'מחק', confirmButtonColor: '#dc2626' }).then(res => { 
+        if (res.isConfirmed) {
+            withBtnLoading(btnEl, () => fetch(`/api/shift_requests/${id}`, { method: 'DELETE' }).then(r => r.json()).then(result => { if (result.success) loadShiftRequests(); }));
+        }
+    }); 
+}
 
 function jumpToScheduleFromRequest(dateStr) {
     if (!dateStr) return; const [y, m] = dateStr.split('-'); const monthVal = `${y}-${m}`;
@@ -1140,6 +1153,7 @@ function jumpToScheduleFromRequest(dateStr) {
     fetch(`/api/schedule?month=${monthVal}`, { cache: 'no-store' }).then(r => r.json()).then(d => { renderScheduleTable(d.matrix, d.mealTimes || {}); document.getElementById('unsaved-badge').classList.add('hidden'); const day = parseInt(dateStr.split('-')[2], 10); const weeks = computeScheduleWeeks(y, m); const idx = weeks.findIndex(w => w.includes(day)); currentScheduleWeekIndex = idx >= 0 ? idx : 0; applyScheduleWeekFilter(); });
 }
 
+// תוספת ה-Drop לכל שדה עובד בטבלה
 function renderScheduleTable(matrix = [], mealTimes = {}) {
     const table = document.getElementById("schedule-table"); table.innerHTML = "";
     const monthVal = document.getElementById("schedule-month-picker").value; const [year, month] = monthVal.split("-"); const daysInMonth = new Date(year, month, 0).getDate();
@@ -1153,20 +1167,23 @@ function renderScheduleTable(matrix = [], mealTimes = {}) {
         headHtml += `<th data-day="${d}" class="${dow === 5 || dow === 6 ? 'day-col-weekend' : ''}" onclick="toggleMuteDay(${d})"><div>${d}</div><div class="day-col-name">${scheduleDayNames[dow]}</div>${heHtml}</th>`;
     }
     thead.innerHTML = headHtml + "</tr>"; table.appendChild(thead); const tbody = document.createElement("tbody");
+    
+    // פונקציית עזר ליצירת אינפוט תומך גרירה
+    const makeDropInput = (val, mealKey) => `<input type="text" list="employee-names-list" value="${val}" class="w-full bg-transparent outline-none p-1 text-center transition-colors" oninput="triggerAutoSave(); refreshCellAvailabilityBadge(this, '${mealKey}')" ondragover="event.preventDefault(); this.parentElement.classList.add('drop-zone-active')" ondragleave="this.parentElement.classList.remove('drop-zone-active')" ondrop="event.preventDefault(); this.parentElement.classList.remove('drop-zone-active'); this.value = event.dataTransfer.getData('text/plain'); triggerAutoSave(); refreshCellAvailabilityBadge(this, '${mealKey}')">`;
+
     meals.forEach(meal => {
         let timeHtml = `<td class="sticky-col bg-gray-200 font-bold" data-meal-label="${meal.key}">${meal.name} / שעה</td>`;
-        // מעבר מ-time לטקסט
         for(let d=1; d<=daysInMonth; d++){ timeHtml += `<td class="bg-gray-100 meal-time-cell" data-day="${d}"><div class="meal-time-wrap"><input type="text" dir="ltr" class="meal-time-input" data-meal="${meal.key}" data-day="${d}" value="${mealTimes[`${meal.key}_${d}`] || meal.time}" oninput="formatTimeInput(this); triggerAutoSave()" onblur="padTimeInput(this)"><button type="button" class="meal-mute-btn" onclick="toggleMuteMealDay('${meal.key}', ${d})"><i class="fa-solid fa-eye-slash"></i></button></div></td>`; }
         const timeRow = document.createElement("tr"); timeRow.innerHTML = timeHtml; timeRow.setAttribute("data-meal", meal.key); tbody.appendChild(timeRow);
         roles.forEach(role => {
             const savedRow = matrix[matrixIndex] || []; let rowHtml = `<td class="sticky-col font-bold">${role}</td>`;
-            for(let d=1; d<=daysInMonth; d++) rowHtml += `<td class="employee-cell" data-day="${d}"><input type="text" list="employee-names-list" value="${savedRow[d] || ""}" oninput="triggerAutoSave(); refreshCellAvailabilityBadge(this, '${meal.key}')"></td>`;
+            for(let d=1; d<=daysInMonth; d++) rowHtml += `<td class="employee-cell transition-all" data-day="${d}">${makeDropInput(savedRow[d] || "", meal.key)}</td>`;
             const row = document.createElement("tr"); row.innerHTML = rowHtml; row.setAttribute("data-meal", meal.key); tbody.appendChild(row); matrixIndex++;
         });
         extraRowsByMeal[meal.key].forEach(entry => {
             const extraTr = document.createElement("tr"); extraTr.className = "border-b dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800/80"; extraTr.setAttribute("data-meal", meal.key); extraTr.setAttribute("data-extra-role", "1");
             const tdRole = document.createElement("td"); tdRole.className = "p-2 border-x dark:border-slate-700 sticky-col bg-white dark:bg-slate-800 z-10 shadow-sm"; tdRole.innerHTML = `<div class="flex items-center gap-1"><input type="text" placeholder="מלצר נוסף" value="${entry.role}" oninput="triggerAutoSave()" class="role-input flex-grow bg-slate-50 dark:bg-slate-700 text-xs rounded border p-1 font-bold outline-none"><button type="button" onclick="this.closest('tr').remove(); triggerAutoSave();" class="text-red-400 hover:text-red-600 shrink-0"><i class="fa-solid fa-xmark"></i></button></div>`; extraTr.appendChild(tdRole);
-            for(let d=1; d<=daysInMonth; d++){ const td = document.createElement("td"); td.className = "employee-cell"; td.setAttribute("data-day", d); td.innerHTML = `<input type="text" list="employee-names-list" value="${entry.cells[d] || ""}" oninput="triggerAutoSave(); refreshCellAvailabilityBadge(this, '${meal.key}')">`; extraTr.appendChild(td); }
+            for(let d=1; d<=daysInMonth; d++){ const td = document.createElement("td"); td.className = "employee-cell transition-all"; td.setAttribute("data-day", d); td.innerHTML = makeDropInput(entry.cells[d] || "", meal.key); extraTr.appendChild(td); }
             tbody.appendChild(extraTr);
         });
         const addRowBtnTr = document.createElement("tr"); addRowBtnTr.className = "schedule-add-row"; addRowBtnTr.setAttribute("data-meal", meal.key); addRowBtnTr.innerHTML = `<td colspan="${daysInMonth + 1}"><button type="button" class="add-meal-row-btn" onclick="addMealRow('${meal.key}')"><i class="fa-solid fa-plus"></i> הוסף מלצר לארוחת ${meal.name}</button></td>`; tbody.appendChild(addRowBtnTr);
@@ -1175,7 +1192,7 @@ function renderScheduleTable(matrix = [], mealTimes = {}) {
     genericExtraRows.forEach(savedRow => {
         const tr = document.createElement("tr"); tr.className = "border-b dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800/80";
         const tdRole = document.createElement("td"); tdRole.className = "p-2 border-x dark:border-slate-700 sticky-col bg-white dark:bg-slate-800 z-10 shadow-sm"; tdRole.innerHTML = `<div class="flex items-center gap-1"><input type="text" placeholder="שם תפקיד" value="${savedRow[0] || ""}" oninput="triggerAutoSave()" class="role-input flex-grow bg-slate-50 dark:bg-slate-700 text-xs rounded border p-1 font-bold outline-none"><button type="button" onclick="this.closest('tr').remove(); triggerAutoSave();" class="text-red-400 hover:text-red-600 shrink-0"><i class="fa-solid fa-xmark"></i></button></div>`; tr.appendChild(tdRole);
-        for(let d = 1; d <= daysInMonth; d++){ const td = document.createElement("td"); td.className = "p-2 border-x dark:border-slate-700 text-center"; td.setAttribute("data-day", d); td.innerHTML = `<input type="text" list="employee-names-list" value="${savedRow[d] || ""}" oninput="triggerAutoSave()" class="w-full bg-transparent outline-none p-1 text-center">`; tr.appendChild(td); }
+        for(let d = 1; d <= daysInMonth; d++){ const td = document.createElement("td"); td.className = "p-2 border-x dark:border-slate-700 text-center employee-cell transition-all"; td.setAttribute("data-day", d); td.innerHTML = makeDropInput(savedRow[d] || "", ""); tr.appendChild(td); }
         tbody.appendChild(tr);
     });
     table.appendChild(tbody); applyMutedDaysStyling(); applyScheduleWeekFilter();
@@ -1225,7 +1242,7 @@ function addRow() {
     const daysInMonth = new Date(document.getElementById('schedule-month-picker').value.split('-')[0], document.getElementById('schedule-month-picker').value.split('-')[1], 0).getDate();
     const tr = document.createElement('tr'); tr.className="border-b dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800/80"; 
     tr.innerHTML = `<td class="p-2 border-x dark:border-slate-700 sticky-col bg-white dark:bg-slate-800 z-10 shadow-sm"><div class="flex items-center gap-1"><input type="text" placeholder="שם תפקיד" oninput="triggerAutoSave()" class="role-input flex-grow bg-slate-50 dark:bg-slate-700 text-xs rounded border p-1 font-bold outline-none"><button type="button" onclick="this.closest('tr').remove(); triggerAutoSave();" class="text-red-400 hover:text-red-600 shrink-0"><i class="fa-solid fa-xmark"></i></button></div></td>`;
-    for(let d=1; d<=daysInMonth; d++) tr.innerHTML += `<td class="p-2 border-x dark:border-slate-700 text-center"><input type="text" list="employee-names-list" oninput="triggerAutoSave()" class="w-full bg-transparent outline-none p-1 text-center"></td>`; 
+    for(let d=1; d<=daysInMonth; d++) tr.innerHTML += `<td class="p-2 border-x dark:border-slate-700 text-center employee-cell transition-all" data-day="${d}"><input type="text" list="employee-names-list" class="w-full bg-transparent outline-none p-1 text-center transition-colors" oninput="triggerAutoSave()" ondragover="event.preventDefault(); this.parentElement.classList.add('drop-zone-active')" ondragleave="this.parentElement.classList.remove('drop-zone-active')" ondrop="event.preventDefault(); this.parentElement.classList.remove('drop-zone-active'); this.value = event.dataTransfer.getData('text/plain'); triggerAutoSave();"></td>`; 
     tbody.appendChild(tr); triggerAutoSave(); applyScheduleWeekFilter();
 }
 
@@ -1234,12 +1251,16 @@ function addMealRow(mealKey) {
     const daysInMonth = new Date(document.getElementById('schedule-month-picker').value.split('-')[0], document.getElementById('schedule-month-picker').value.split('-')[1], 0).getDate();
     const tr = document.createElement('tr'); tr.className = "border-b dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800/80"; tr.setAttribute('data-meal', mealKey); tr.setAttribute('data-extra-role', '1');
     tr.innerHTML = `<td class="p-2 border-x dark:border-slate-700 sticky-col bg-white dark:bg-slate-800 z-10 shadow-sm"><div class="flex items-center gap-1"><input type="text" placeholder="מלצר נוסף" oninput="triggerAutoSave()" class="role-input flex-grow bg-slate-50 dark:bg-slate-700 text-xs rounded border p-1 font-bold outline-none"><button type="button" onclick="this.closest('tr').remove(); triggerAutoSave();" class="text-red-400 hover:text-red-600 shrink-0"><i class="fa-solid fa-xmark"></i></button></div></td>`;
-    for(let d=1; d<=daysInMonth; d++) tr.innerHTML += `<td class="employee-cell" data-day="${d}"><input type="text" list="employee-names-list" oninput="triggerAutoSave(); refreshCellAvailabilityBadge(this, '${mealKey}')"></td>`;
+    
+    // פונקציית העזר מופעלת כאן
+    const makeDropInput = (val, mealKey) => `<input type="text" list="employee-names-list" value="${val}" class="w-full bg-transparent outline-none p-1 text-center transition-colors" oninput="triggerAutoSave(); refreshCellAvailabilityBadge(this, '${mealKey}')" ondragover="event.preventDefault(); this.parentElement.classList.add('drop-zone-active')" ondragleave="this.parentElement.classList.remove('drop-zone-active')" ondrop="event.preventDefault(); this.parentElement.classList.remove('drop-zone-active'); this.value = event.dataTransfer.getData('text/plain'); triggerAutoSave(); refreshCellAvailabilityBadge(this, '${mealKey}')">`;
+    for(let d=1; d<=daysInMonth; d++) tr.innerHTML += `<td class="employee-cell transition-all" data-day="${d}">${makeDropInput('', mealKey)}</td>`;
+    
     const addBtnRow = tbody.querySelector(`tr.schedule-add-row[data-meal="${mealKey}"]`); if(addBtnRow) tbody.insertBefore(tr, addBtnRow); else tbody.appendChild(tr);
     triggerAutoSave(); applyMutedDaysStyling(); applyScheduleWeekFilter(); const firstInput = tr.querySelector('.role-input'); if(firstInput) firstInput.focus();
 }
 
-function saveScheduleToDB() {
+function saveScheduleToDB(btnEl) {
     const conflicts = findScheduleAvailabilityConflicts();
     if (conflicts.length) {
         const list = conflicts.slice(0, 10).map(c => `${c.name} — ${c.dateStr} (${c.meal})`).join('<br>');
@@ -1248,22 +1269,24 @@ function saveScheduleToDB() {
             title: 'נמצאו התנגשויות זמינות', icon: 'warning',
             html: `<div class="text-right text-sm">העובדים הבאים ביקשו אי-זמינות למועדים שבהם הם משובצים כרגע:<br><br>${list}${more}<br><br>לשמור בכל זאת?</div>`,
             showCancelButton: true, confirmButtonText: 'שמור בכל זאת', cancelButtonText: 'בטל, אני אתקן', confirmButtonColor: '#d97706'
-        }).then(res => { if (res.isConfirmed) doSaveScheduleToDB(); });
+        }).then(res => { if (res.isConfirmed) doSaveScheduleToDB(btnEl); });
         return;
     }
-    doSaveScheduleToDB();
+    doSaveScheduleToDB(btnEl);
 }
 
-function doSaveScheduleToDB() {
-    fetch("/api/schedule", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ month:document.getElementById("schedule-month-picker").value, matrix:getMatrixFromTable(), mealTimes:getMealTimesFromTable(), last_modified: currentScheduleLastModified }) })
-    .then(async r => { const data = await r.json(); if(!r.ok) throw new Error(data.error || "Server Error"); return data; })
-    .then((data) => { 
-        currentScheduleLastModified = data.last_modified || currentScheduleLastModified;
-        localStorage.removeItem("schedule_draft"); 
-        const badge = document.getElementById("unsaved-badge"); if(badge) badge.classList.add("hidden"); 
-        Swal.fire({ icon:"success", title:"השיבוץ נשמר", toast: true, position: 'top', showConfirmButton: false, timer: 2000 }); 
-    })
-    .catch(err => { Swal.fire({ icon:"error", title:"השמירה נכשלה", text:err.message }); });
+function doSaveScheduleToDB(btnEl) {
+    withBtnLoading(btnEl, () => 
+        fetch("/api/schedule", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ month:document.getElementById("schedule-month-picker").value, matrix:getMatrixFromTable(), mealTimes:getMealTimesFromTable(), last_modified: currentScheduleLastModified }) })
+        .then(async r => { const data = await r.json(); if(!r.ok) throw new Error(data.error || "Server Error"); return data; })
+        .then((data) => { 
+            currentScheduleLastModified = data.last_modified || currentScheduleLastModified;
+            localStorage.removeItem("schedule_draft"); 
+            const badge = document.getElementById("unsaved-badge"); if(badge) badge.classList.add("hidden"); 
+            Swal.fire({ icon:"success", title:"השיבוץ נשמר", toast: true, position: 'top', showConfirmButton: false, timer: 2000 }); 
+        })
+        .catch(err => { Swal.fire({ icon:"error", title:"השמירה נכשלה", text:err.message }); })
+    );
 }
 
 function printSchedule() {
@@ -1334,57 +1357,8 @@ function sendScheduleWhatsapp() {
     }, 'image/png');
 }
 
-// ----------------- SETTINGS & PINS -----------------
-function saveGapAlertSetting() {
+function saveGapAlertSetting(btnEl) {
     const val = document.getElementById('setting-gap-alert').value;
-    fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shift_gap_alert_hours: val }) })
-    .then(r => r.json()).then(result => { if (result.success) showSuccessToast('ההגדרה נשמרה'); else Swal.fire('שגיאה', 'שמירת ההגדרה נכשלה', 'error'); });
+    withBtnLoading(btnEl, () => fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shift_gap_alert_hours: val }) })
+    .then(r => r.json()).then(result => { if (result.success) showSuccessToast('ההגדרה נשמרה'); else Swal.fire('שגיאה', 'שמירת ההגדרה נכשלה', 'error'); }));
 }
-
-function renderPinsTable() {
-    const tbody = document.getElementById('pins-table-tbody'); tbody.innerHTML = '';
-    const sortedEmployees = [...allEmployees].sort((a,b) => a.name.localeCompare(b.name));
-    if (sortedEmployees.length === 0) { tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-400">אין עובדים רשומים.</td></tr>`; return; }
-    sortedEmployees.forEach(emp => {
-        const tr = document.createElement('tr'); tr.className = "hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"; const c = domainColor(emp.department);
-        tr.innerHTML = `<td class="p-3 font-bold text-slate-900 dark:text-white ${!emp.is_active ? 'line-through text-slate-400' : ''}">${escapeHTML(emp.name)} ${!emp.is_active ? '<span class="text-[10px] bg-slate-200 text-slate-500 px-1 rounded ml-1">לא פעיל</span>' : ''}</td><td class="p-3"><span class="px-2.5 py-1 rounded-full text-xs font-semibold" style="background-color:${c}22;color:${c}">${emp.department || '-'}</span></td><td class="p-3 text-slate-600 dark:text-slate-400">${emp.role || '-'}</td><td class="p-3 font-mono text-slate-600 dark:text-slate-400">${emp.phone || '-'}</td><td class="p-3 font-black text-xl text-emerald-600 dark:text-emerald-400 tracking-widest">${emp.pin_code}</td>`;
-        tbody.appendChild(tr);
-    });
-}
-
-function addDomainPrompt() { Swal.fire({ title: 'תחום חדש', input: 'text', showCancelButton: true, confirmButtonText: 'הוסף', cancelButtonText: 'ביטול' }).then(res => { if (!res.isConfirmed || !res.value.trim()) return; fetch('/api/domains', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: res.value.trim() }) }).then(r => r.json()).then(result => { if (result.success) loadDomains(); }); }); }
-function renameDomainPrompt(id, currentName) { Swal.fire({ title: 'שינוי שם', input: 'text', inputValue: currentName, showCancelButton: true, confirmButtonText: 'שמור', cancelButtonText: 'ביטול' }).then(res => { if (!res.isConfirmed || !res.value.trim()) return; fetch(`/api/domains/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: res.value.trim() }) }).then(r => r.json()).then(result => { if (result.success) { loadDomains(); loadEmployees(); } }); }); }
-function updateDomainColor(id, color) { fetch(`/api/domains/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ color }) }).then(r => r.json()).then(result => { if (result.success) loadDomains(); }); }
-function toggleDomainActive(id, newActive) { fetch(`/api/domains/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: newActive }) }).then(r => r.json()).then(result => { if (result.success) loadDomains(); }); }
-
-function pollTick() {
-    if (!document.getElementById('content-dashboard').classList.contains('hidden')) loadDashboard();
-    if (!document.getElementById('content-hours').classList.contains('hidden') && currentEmpId) {
-        if (document.activeElement && document.activeElement.tagName !== 'INPUT') {
-            fetch(`/api/shifts/${currentEmpId}`, { cache: 'no-store' }).then(r=>r.json()).then(shifts => { currentShiftsMap = {}; shifts.forEach(s => { currentShiftsMap[s.date] = s; }); renderMonthGrid(); });
-        }
-    }
-}
-
-function startPolling() {
-    if (mainPollInterval) return; 
-    mainPollInterval = setInterval(pollTick, 10000);
-    if (!liveTimerInterval) liveTimerInterval = setInterval(updateLiveTimers, 60000);
-}
-
-function stopPolling() {
-    if (mainPollInterval) { clearInterval(mainPollInterval); mainPollInterval = null; }
-    if (liveTimerInterval) { clearInterval(liveTimerInterval); liveTimerInterval = null; }
-}
-
-document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') {
-        stopPolling();
-    } else {
-        startPolling();
-        pollTick(); 
-        updateLiveTimers();
-    }
-});
-
-startPolling();
