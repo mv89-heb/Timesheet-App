@@ -25,7 +25,7 @@ table { table-layout: auto !important; }
     width: 100%;
     border-collapse: collapse;
     border-spacing: 0;
-    min-width: max-content;
+    min-width: 1200px; /* שומר על רוחב תקין ומונע מעיכה של הטבלה */
     font-size: 13px;
 }
 
@@ -34,24 +34,26 @@ table { table-layout: auto !important; }
     text-align: center;
     vertical-align: middle;
     padding: 4px;
+    white-space: nowrap; /* מניעת ירידת שורה לא רצויה */
 }
 
 /* =====================================
-   עמודת תפקידים קבועה
+   עמודת תפקידים קבועה (Sticky)
 ====================================== */
 .sticky-col {
     position: sticky;
     right: 0;
     z-index: 30;
-    background-color: #e5e7eb;
-    border-left: 3px solid #475569 !important;
+    background-color: #f8fafc;
+    border-left: 2px solid #e2e8f0 !important;
     font-weight: bold;
-    white-space: nowrap;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.05);
 }
 
 .dark .sticky-col {
     background-color: #1e293b;
-    border-left: 3px solid #64748b !important;
+    border-left: 2px solid #334155 !important;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.3);
 }
 
 /* =====================================
@@ -189,7 +191,8 @@ table { table-layout: auto !important; }
     .employee-cell { background: #dbeafe !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .section-divider td { background: black !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
-/* ===== Sprint 3: חיווי זמינות בתא השיבוץ ===== */
+
+/* ===== חיווי זמינות בתא השיבוץ ===== */
 .availability-badge {
     position: absolute;
     top: 1px;
@@ -202,4 +205,39 @@ table { table-layout: auto !important; }
 .cell-conflict {
     outline: 2px solid #dc2626 !important;
     outline-offset: -2px;
+}
+
+/* =====================================
+   שדרוגי חוויית משתמש (UX)
+====================================== */
+
+/* כפתורים חכמים - מצב טעינה */
+.btn-loading { opacity: 0.7; pointer-events: none; }
+
+/* אלמנטים נגררים בלוח השיבוץ */
+.draggable-chip { cursor: grab; user-select: none; transition: transform 0.1s, box-shadow 0.1s; }
+.draggable-chip:active { cursor: grabbing; transform: scale(0.95); }
+.drop-zone-active { background-color: #dbeafe !important; outline: 2px dashed #3b82f6; outline-offset: -2px; }
+.dark .drop-zone-active { background-color: #1e3a8a !important; outline-color: #60a5fa; }
+
+/* רספונסיביות - טבלאות הופכות לכרטיסיות במובייל */
+@media screen and (max-width: 768px) {
+    .responsive-table thead { display: none; }
+    .responsive-table tbody tr {
+        display: flex; flex-direction: column;
+        margin-bottom: 1rem; border: 1px solid #e2e8f0; border-radius: 0.75rem;
+        background-color: white; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .dark .responsive-table tbody tr { border-color: #334155; background-color: #1e293b; }
+    .responsive-table tbody td {
+        display: flex; justify-content: space-between; align-items: center;
+        border-bottom: 1px solid #f1f5f9; padding: 0.75rem; text-align: left; white-space: normal;
+    }
+    .dark .responsive-table tbody td { border-bottom-color: #334155; }
+    .responsive-table tbody td::before {
+        content: attr(data-label); font-weight: bold; color: #64748b; margin-left: 1rem;
+    }
+    .dark .responsive-table tbody td::before { color: #94a3b8; }
+    .responsive-table tbody td:last-child { border-bottom: none; justify-content: flex-end; gap: 0.5rem; background-color: #f8fafc; }
+    .dark .responsive-table tbody td:last-child { background-color: #0f172a; }
 }
