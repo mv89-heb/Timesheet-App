@@ -1,4 +1,5 @@
 import csv
+import random
 from io import StringIO
 from flask import Blueprint, request, jsonify, session, Response
 from database import db_cursor
@@ -28,9 +29,16 @@ def add_employee():
     data = request.json or {}
     if not data.get('first_name') or not data.get('last_name') or not data.get('phone') or not data.get('department'):
         return jsonify({'success': False, 'error': 'יש למלא את כל שדות החובה'}), 400
+    
     pin = data['phone'][-4:] if data['phone'] and len(data['phone']) >= 4 else '0000'
     
     with db_cursor() as (conn, cursor):
+        # מניעת חפיפת קודי PIN (באג מס' 1) - אם קיים, מוסיף 1 עד שמוצא פנוי
+        cursor.execute("SELECT id FROM employees WHERE pin_code = %s", (pin,))
+        while cursor.fetchone():
+            pin = str((int(pin) + 1) % 10000).zfill(4)
+            cursor.execute("SELECT id FROM employees WHERE pin_code = %s", (pin,))
+
         cursor.execute("""
             INSERT INTO employees (first_name, last_name, phone, pin_code, department, role, permission_level, is_active) 
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
@@ -45,6 +53,12 @@ def update_employee(emp_id):
     pin = data['phone'][-4:] if data['phone'] and len(data['phone']) >= 4 else '0000'
     
     with db_cursor() as (conn, cursor):
+        # מניעת חפיפת קודי PIN בעדכון (מדלג על העובד הנוכחי)
+        cursor.execute("SELECT id FROM employees WHERE pin_code = %s AND id != %s", (pin, emp_id))
+        while cursor.fetchone():
+            pin = str((int(pin) + 1) % 10000).zfill(4)
+            cursor.execute("SELECT id FROM employees WHERE pin_code = %s AND id != %s", (pin, emp_id))
+
         cursor.execute("""
             UPDATE employees
             SET first_name = %s, last_name = %s, phone = %s, pin_code = %s, department = %s, role = %s, permission_level = %s, is_active = %s
@@ -53,14 +67,12 @@ def update_employee(emp_id):
         conn.commit()
     return jsonify({'success': True, 'pin': pin})
 
-# רק מנהל מערכת (admin) רשאי למחוק לחלוטין (Hard Delete)
 @employees_bp.route('/api/employees/<int:emp_id>', methods=['DELETE'])
 @requires_role(['admin'])
 def delete_employee(emp_id):
     with db_cursor() as (conn, cursor):
         cursor.execute("DELETE FROM employees WHERE id = %s", (emp_id,))
         cursor.execute("DELETE FROM shift_segments WHERE employee_id = %s", (emp_id,))
-        # התיקון: מוחק גם את כל הבקשות ותיקוני השעות של העובד כדי שלא יישארו כיתומים
         cursor.execute("DELETE FROM shift_requests WHERE employee_id = %s", (emp_id,))
         cursor.execute("DELETE FROM time_corrections WHERE employee_id = %s", (emp_id,))
         conn.commit()
