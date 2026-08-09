@@ -1,9 +1,7 @@
 import os
 from flask import Flask, render_template
 
-# ייבוא הפונקציות ממסד הנתונים
 from database import init_db, migrate_legacy_shifts
-
 from routes.auth import auth_bp
 from routes.employees import employees_bp
 from routes.shifts import shifts_bp
@@ -11,7 +9,8 @@ from routes.schedule import schedule_bp
 from routes.settings import settings_bp
 
 app = Flask(__name__)
-app.secret_key = 'admin_secret_key_123'
+# תיקון אבטחה: שימוש במשתנה סביבה או יצירת מפתח רנדומלי אמיתי כדי למנוע זיוף עוגיות מנהל
+app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 
 @app.after_request
 def add_header(response):
@@ -34,12 +33,6 @@ def admin_panel():
 def kiosk_mode(): 
     return render_template('kiosk.html')
 
-# הפעלה אוטומטית של שחזור הנתונים בעליית השרת.
-# עוטפים ב-try/except כדי שתקלת חיבור זמנית ל-DB (למשל בזמן "התעוררות" של
-# Neon, או סיסמה שהוחלפה ועדיין לא עודכנה במשתני הסביבה) לא תפיל את כל
-# השרת - היא רק תימנע מהאתחול האוטומטי לרוץ, אבל האתר עצמו ימשיך לעלות
-# ולהציג את מסך ההתחברות; קריאות ה-API יחזירו שגיאה ברורה בקונסול/ברשת
-# במקום שהשרת כולו יקרוס וכל הדף ייראה ריק.
 if os.environ.get('DATABASE_URL'):
     try:
         init_db()
