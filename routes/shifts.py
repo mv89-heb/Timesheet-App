@@ -39,8 +39,6 @@ def compute_month_summary(month):
             emp_hours_map[s['employee_id']]['hours'] += hours
             emp_hours_map[s['employee_id']]['domain'] = dname
 
-    # "עובדים משויכים" = מחלקת הבית של העובד (employees.department) - לא בהכרח מי שעבד בפועל.
-    # "עובדים פעילים" = מי שבאמת עבד לפחות משמרת אחת בתחום הזה החודש. שני מושגים שונים בכוונה.
     employees_assigned_per_domain = {}
     for e in emps: employees_assigned_per_domain[e['department']] = employees_assigned_per_domain.get(e['department'], 0) + 1
 
@@ -55,8 +53,8 @@ def compute_month_summary(month):
         domains_summary.append({
             'name': name,
             'color': d['color'],
-            'employees_count': employees_assigned_per_domain.get(name, 0),  # משויכים (שם קיים, נשמר לתאימות לאחור)
-            'active_employees_count': active_count,                         # עבדו בפועל החודש
+            'employees_count': employees_assigned_per_domain.get(name, 0),
+            'active_employees_count': active_count,
             'hours': hours,
             'shift_count': domain_shift_count.get(name, 0),
             'avg_hours_per_employee': round(hours / active_count, 2) if active_count > 0 else 0
@@ -72,7 +70,6 @@ def compute_month_summary(month):
     }
 
 def compute_month_forecast(month, total_hours_so_far, shift_count_so_far):
-    """תחזית לסוף החודש, רק כאשר מדובר בחודש הנוכחי (אין טעם לחזות חודש שכבר הסתיים/עתידי)."""
     now = datetime.now()
     if month != now.strftime('%Y-%m'):
         return None
@@ -128,8 +125,6 @@ def dashboard_stats():
 @shifts_bp.route('/api/dashboard/trend', methods=['GET'])
 @requires_role(['admin', 'manager'])
 def dashboard_trend():
-    """מגמת שעות/משמרות לאורך מספר חודשים אחרונים (כולל החודש הנוכחי). Endpoint נפרד וחדש -
-    לא נוגע ב-/api/dashboard הקיים, כדי לא לשבור תאימות."""
     try:
         months_count = int(request.args.get('months', 6))
     except (TypeError, ValueError):
@@ -144,7 +139,7 @@ def dashboard_trend():
         m -= 1
         if m == 0:
             m, y = 12, y - 1
-    month_keys.reverse()  # מהישן לחדש
+    month_keys.reverse() 
 
     earliest = month_keys[0]
     with db_cursor(dict_cursor=True) as (conn, cursor):
@@ -161,7 +156,6 @@ def dashboard_trend():
     }
     return jsonify(result)
 
-
 @shifts_bp.route('/api/shifts/summary', methods=['GET'])
 @requires_role(['admin', 'manager'])
 def shifts_summary():
@@ -174,9 +168,6 @@ def get_shifts(emp_id):
     gap_alert_hours = float(get_setting('shift_gap_alert_hours', '8') or 8)
     if gap_alert_hours <= 0: gap_alert_hours = None
 
-    # שיפור ביצועים: אם מבקשים חודש ספציפי, טוענים רק אותו (ולא את כל ההיסטוריה
-    # של העובד). ללא הפרמטר - ההתנהגות הישנה (כל ההיסטוריה) נשמרת לתאימות לאחור
-    # עבור כל קוד קיים שקורא ל-endpoint הזה בלי הפרמטר.
     month_filter = request.args.get('month')
 
     with db_cursor(dict_cursor=True) as (conn, cursor):
@@ -231,10 +222,12 @@ def upsert_shift():
         cursor.execute("DELETE FROM shift_segments WHERE employee_id = %s AND date = %s", (emp_id, date))
         for seg in segments:
             entry, exit_ = (seg.get('entry') or '').strip() or None, (seg.get('exit') or '').strip() or None
-            if not entry and not exit_: continue
             total = seg.get('total_hours')
             try: total = float(total) if total not in (None, '') else 0
             except: total = 0
+            
+            if not entry and not exit_ and not total and not seg.get('notes'): continue
+            
             if not total and entry and exit_: total = calc_hours(entry, exit_)
             cursor.execute("""INSERT INTO shift_segments (employee_id, date, domain_id, entry_time, exit_time, total_hours, notes, source) 
                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""", 
