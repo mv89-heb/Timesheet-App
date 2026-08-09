@@ -720,6 +720,7 @@ function saveDaySegments(dateStr) {
         let autoTotal = 0; if (entry && exit) { let diff = t2d(exit) - t2d(entry); if (diff < 0) diff += 24; autoTotal = diff; }
         const totalInput = row.querySelector('[data-field="total_hours"]'); if (autoTotal > 0) totalInput.value = autoTotal.toFixed(2);
         
+        // תיקון סך שעות ידני: מדלג רק אם הכל ריק!
         if (!entry && !exit && !totalInput.value && !getVal('notes')) return;
         
         segments.push({ domain_id: domainSelect ? domainSelect.value : null, entry: entry, exit: exit, source: row.dataset.source || 'manual', total_hours: totalInput.value || 0, notes: getVal('notes') });
@@ -1001,22 +1002,118 @@ function copyPreviousSchedule() {
     });
 }
 
+// ------ הלשוניות של בקשות השיבוץ ------
+let currentRequestStatusFilter = 'pending';
+
+function filterShiftRequestsByStatus(status) {
+    currentRequestStatusFilter = status;
+    
+    const tabs = {
+        pending: { el: 'req-status-tab-pending', activeCls: 'bg-amber-500 text-white shadow-sm' },
+        approved: { el: 'req-status-tab-approved', activeCls: 'bg-emerald-600 text-white shadow-sm' },
+        rejected: { el: 'req-status-tab-rejected', activeCls: 'bg-rose-600 text-white shadow-sm' },
+        all: { el: 'req-status-tab-all', activeCls: 'bg-blue-600 text-white shadow-sm' }
+    };
+
+    const inactiveCls = 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200';
+
+    Object.keys(tabs).forEach(key => {
+        const tabEl = document.getElementById(tabs[key].el);
+        if (!tabEl) return;
+        if (key === status) {
+            tabEl.className = `px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${tabs[key].activeCls}`;
+        } else {
+            tabEl.className = `px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${inactiveCls}`;
+        }
+    });
+
+    renderShiftRequestsTable();
+}
+
+function updateRequestsCounts() {
+    const counts = { pending: 0, approved: 0, rejected: 0, all: allShiftRequests.length };
+    allShiftRequests.forEach(r => {
+        if (counts[r.status] !== undefined) counts[r.status]++;
+    });
+
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setVal('req-count-pending', counts.pending);
+    setVal('req-count-approved', counts.approved);
+    setVal('req-count-rejected', counts.rejected);
+    setVal('req-count-all', counts.all);
+}
+
 let allShiftRequests = [];
-function refreshRequestsBadge() { fetch('/api/shift_requests', { cache: 'no-store' }).then(r => r.json()).then(list => { const badge = document.getElementById('requests-badge'); if (!badge) return; const pendingCount = Array.isArray(list) ? list.filter(r => r.status === 'pending').length : 0; if (pendingCount > 0) { badge.classList.remove('hidden'); badge.textContent = pendingCount; } else badge.classList.add('hidden'); }).catch(() => {}); }
+function refreshRequestsBadge() { 
+    fetch('/api/shift_requests', { cache: 'no-store' })
+    .then(r => r.json())
+    .then(list => { 
+        const badge = document.getElementById('requests-badge'); 
+        if (!badge) return; 
+        const pendingCount = Array.isArray(list) ? list.filter(r => r.status === 'pending').length : 0; 
+        if (pendingCount > 0) { 
+            badge.classList.remove('hidden'); 
+            badge.textContent = pendingCount; 
+        } else badge.classList.add('hidden'); 
+    }).catch(() => {}); 
+}
 
 function loadShiftRequests() {
-    const monthVal = document.getElementById('requests-month-picker').value; const tbody = document.getElementById('requests-table-tbody');
+    const monthVal = document.getElementById('requests-month-picker').value; 
+    const tbody = document.getElementById('requests-table-tbody');
+    if (!tbody) return;
     tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-400">טוען...</td></tr>';
-    fetch(`/api/shift_requests?month=${monthVal}`, { cache: 'no-store' }).then(r => r.json()).then(list => { allShiftRequests = Array.isArray(list) ? list : []; renderShiftRequestsTable(); refreshRequestsBadge(); }).catch(() => { tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-red-400">שגיאה</td></tr>'; });
+    
+    fetch(`/api/shift_requests?month=${monthVal}`, { cache: 'no-store' })
+    .then(r => r.json())
+    .then(list => { 
+        allShiftRequests = Array.isArray(list) ? list : []; 
+        renderShiftRequestsTable(); 
+        refreshRequestsBadge(); 
+    }).catch(() => { 
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-red-400">שגיאה בטעינת נתונים</td></tr>'; 
+    });
 }
 
 function renderShiftRequestsTable() {
-    const tbody = document.getElementById('requests-table-tbody'); tbody.innerHTML = '';
-    if (!allShiftRequests.length) { tbody.innerHTML = '<tr><td colspan="8" class="text-center py-12 text-slate-400">אין בקשות שיבוץ.</td></tr>'; return; }
-    const statusLabels = { pending: 'ממתין', approved: 'אושר', rejected: 'נדחה' }, statusColors = { pending: 'bg-amber-100 text-amber-800', approved: 'bg-emerald-100 text-emerald-800', rejected: 'bg-slate-200 text-slate-600' }, typeColors = { available: 'bg-emerald-50 text-emerald-700 border border-emerald-300', unavailable: 'bg-rose-50 text-rose-700 border border-rose-300' };
-    [...allShiftRequests].sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(req => {
-        const tr = document.createElement('tr'); tr.className = req.has_conflict ? 'request-row-conflict' : 'hover:bg-slate-50 dark:hover:bg-slate-700/40';
-        tr.innerHTML = `<td class="p-3 font-bold">${req.employee_name}</td><td class="p-3">${req.date}</td><td class="p-3">${req.meal_label}</td><td class="p-3"><span class="px-2 py-1 rounded-full text-xs font-bold ${typeColors[req.request_type] || ''}">${req.request_type_label}</span></td><td class="p-3 text-slate-500 max-w-xs truncate" title="${req.note || ''}">${req.note || '-'}</td><td class="p-3"><span class="px-2 py-1 rounded-full text-xs font-bold ${statusColors[req.status] || ''}">${statusLabels[req.status] || req.status}</span></td><td class="p-3">${req.has_conflict ? `<span class="request-conflict-badge inline-flex items-center gap-1 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full" title="${(req.conflict_reasons || []).join(' | ')}"><i class="fa-solid fa-triangle-exclamation"></i> התנגשות</span>` : '<span class="text-slate-300">-</span>'}</td><td class="p-3"><div class="flex gap-1 flex-wrap"><button onclick="jumpToScheduleFromRequest('${req.date}')" title="עבור לשיבוץ" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-calendar-days"></i></button><button onclick="setShiftRequestStatus(${req.id}, 'approved')" title="אשר" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-check"></i></button><button onclick="setShiftRequestStatus(${req.id}, 'rejected')" title="דחה" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-xmark"></i></button><button onclick="deleteShiftRequest(${req.id})" title="מחק" class="bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-trash"></i></button></div></td>`;
+    const tbody = document.getElementById('requests-table-tbody'); 
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    updateRequestsCounts();
+
+    const filteredRequests = allShiftRequests.filter(req => {
+        if (currentRequestStatusFilter === 'all') return true;
+        return req.status === currentRequestStatusFilter;
+    });
+
+    if (!filteredRequests.length) { 
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-12 text-slate-400">אין בקשות בסטטוס זה.</td></tr>'; 
+        return; 
+    }
+
+    const statusLabels = { pending: 'ממתין', approved: 'אושר', rejected: 'נדחה' }, 
+          statusColors = { pending: 'bg-amber-100 text-amber-800', approved: 'bg-emerald-100 text-emerald-800', rejected: 'bg-slate-200 text-slate-600' }, 
+          typeColors = { available: 'bg-emerald-50 text-emerald-700 border border-emerald-300', unavailable: 'bg-rose-50 text-rose-700 border border-rose-300' };
+
+    [...filteredRequests].sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(req => {
+        const tr = document.createElement('tr'); 
+        tr.className = req.has_conflict ? 'request-row-conflict' : 'hover:bg-slate-50 dark:hover:bg-slate-700/40';
+        tr.innerHTML = `
+            <td class="p-3 font-bold">${req.employee_name}</td>
+            <td class="p-3">${req.date}</td>
+            <td class="p-3">${req.meal_label}</td>
+            <td class="p-3"><span class="px-2 py-1 rounded-full text-xs font-bold ${typeColors[req.request_type] || ''}">${req.request_type_label}</span></td>
+            <td class="p-3 text-slate-500 max-w-xs truncate" title="${req.note || ''}">${req.note || '-'}</td>
+            <td class="p-3"><span class="px-2 py-1 rounded-full text-xs font-bold ${statusColors[req.status] || ''}">${statusLabels[req.status] || req.status}</span></td>
+            <td class="p-3">${req.has_conflict ? `<span class="request-conflict-badge inline-flex items-center gap-1 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full" title="${(req.conflict_reasons || []).join(' | ')}"><i class="fa-solid fa-triangle-exclamation"></i> התנגשות</span>` : '<span class="text-slate-300">-</span>'}</td>
+            <td class="p-3"><div class="flex gap-1 flex-wrap">
+                <button onclick="jumpToScheduleFromRequest('${req.date}')" title="עבור לשיבוץ" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-calendar-days"></i></button>
+                ${req.status !== 'approved' ? `<button onclick="setShiftRequestStatus(${req.id}, 'approved')" title="אשר" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-check"></i></button>` : ''}
+                ${req.status !== 'rejected' ? `<button onclick="setShiftRequestStatus(${req.id}, 'rejected')" title="דחה" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-xmark"></i></button>` : ''}
+                <button onclick="deleteShiftRequest(${req.id})" title="מחק" class="bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-trash"></i></button>
+            </div></td>
+        `;
         tbody.appendChild(tr);
     });
 }
