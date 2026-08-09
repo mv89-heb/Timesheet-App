@@ -6,6 +6,14 @@ from routes.auth import requires_role
 
 shifts_bp = Blueprint('shifts', __name__)
 
+def t_to_float(t):
+    if not t or t == '-': return None
+    try:
+        h, m = map(int, str(t).split(':'))
+        return h + m / 60.0
+    except Exception:
+        return None
+
 def compute_month_summary(month):
     today_str = datetime.now().strftime('%Y-%m-%d')
     with db_cursor(dict_cursor=True) as (conn, cursor):
@@ -181,13 +189,6 @@ def get_shifts(emp_id):
                               WHERE s.employee_id = %s ORDER BY s.date ASC, s.id ASC""", (emp_id,))
         rows = cursor.fetchall()
     today_str = datetime.now().strftime('%Y-%m-%d')
-    
-    def t_to_float(t):
-        if not t: return None
-        try: 
-            h, m = map(int, t.split(':'))
-            return h + m / 60.0
-        except Exception: return None
         
     by_date = {}
     for r in rows: by_date.setdefault(r['date'], []).append(r)
@@ -219,7 +220,16 @@ def upsert_shift():
     emp_id, date, segments = data.get('employee_id'), data.get('date'), data.get('segments')
     if not emp_id or not date or segments is None: return jsonify({'success': False, 'error': 'חסרים שדות חובה'}), 400
     with db_cursor() as (conn, cursor):
-        cursor.execute("DELETE FROM shift_segments WHERE employee_id = %s AND date = %s", (emp_id, date))
+        
+        # תיקון (מניעת השמדת מזהי משמרות במחיקה מלאה ויצירה מחדש): 
+        # משמרות שמגיעות עם ID יעודכנו, ורק כאלו שהוסרו יימחקו
+        incoming_ids = [int(seg['id']) for seg in segments if str(seg.get('id')).isdigit()]
+        if incoming_ids:
+            format_strings = ','.join(['%s'] * len(incoming_ids))
+            cursor.execute(f"DELETE FROM shift_segments WHERE employee_id = %s AND date = %s AND id NOT IN ({format_strings})", [emp_id, date] + incoming_ids)
+        else:
+            cursor.execute("DELETE FROM shift_segments WHERE employee_id = %s AND date = %s", (emp_id, date))
+
         for seg in segments:
             entry, exit_ = (seg.get('entry') or '').strip() or None, (seg.get('exit') or '').strip() or None
             total = seg.get('total_hours')
@@ -227,11 +237,18 @@ def upsert_shift():
             except: total = 0
             
             if not entry and not exit_ and not total and not seg.get('notes'): continue
-            
             if not total and entry and exit_: total = calc_hours(entry, exit_)
-            cursor.execute("""INSERT INTO shift_segments (employee_id, date, domain_id, entry_time, exit_time, total_hours, notes, source) 
-                              VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""", 
-                           (emp_id, date, seg.get('domain_id') or None, entry, exit_, round(total, 2), (seg.get('notes') or '').strip() or None, (seg.get('source') or 'manual').strip() or 'manual'))
+            
+            seg_id = seg.get('id')
+            if str(seg_id).isdigit():
+                cursor.execute("""UPDATE shift_segments 
+                                  SET domain_id=%s, entry_time=%s, exit_time=%s, total_hours=%s, notes=%s, source=%s 
+                                  WHERE id=%s AND employee_id=%s""",
+                               (seg.get('domain_id') or None, entry, exit_, round(total, 2), (seg.get('notes') or '').strip() or None, (seg.get('source') or 'manual').strip() or 'manual', int(seg_id), emp_id))
+            else:
+                cursor.execute("""INSERT INTO shift_segments (employee_id, date, domain_id, entry_time, exit_time, total_hours, notes, source) 
+                                  VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""", 
+                               (emp_id, date, seg.get('domain_id') or None, entry, exit_, round(total, 2), (seg.get('notes') or '').strip() or None, (seg.get('source') or 'manual').strip() or 'manual'))
         conn.commit()
     return jsonify({'success': True})
 
@@ -269,6 +286,11 @@ def kiosk_punch():
             action_name, domain_label = "כניסה למשמרת", domain['name']
         elif action_type == 'exit':
             if not open_segment: return jsonify({'success': False, 'message': 'לא נמצאה משמרת פתוחה.'})
+            
+            # התיקון: חסימת משמרות "זומבי" של ימים קודמים
+            if open_segment['date'] != today:
+                return jsonify({'success': False, 'message': 'המשמרת הפתוחה שלך היא מיום קודם. אנא השתמש ב"תיקון שעות ידני" כדי לסגור אותה.'})
+
             total = calc_hours(open_segment['entry_time'], time_now)
             cursor.execute("UPDATE shift_segments SET exit_time = %s, total_hours = %s WHERE id = %s", (time_now, round(total, 2), open_segment['id']))
             cursor.execute("SELECT name FROM domains WHERE id = %s", (open_segment['domain_id'],))
@@ -323,6 +345,21 @@ def update_time_correction(req_id):
         if not req: return jsonify({'success': False, 'error': 'בקשה לא נמצאה'}), 404
         
         if status == 'approved':
+            # תיקון "אישור עיוור": מוודא שאין משמרת חופפת קיימת לפני שמאשרים
+            cursor.execute("SELECT entry_time, exit_time FROM shift_segments WHERE employee_id = %s AND date = %s AND exit_time IS NOT NULL", (req['employee_id'], req['date']))
+            existing_shifts = cursor.fetchall()
+            s1 = t_to_float(req['entry_time'])
+            e1 = t_to_float(req['exit_time'])
+            if s1 is not None and e1 is not None:
+                if e1 < s1: e1 += 24
+                for ex in existing_shifts:
+                    s2 = t_to_float(ex['entry_time'])
+                    e2 = t_to_float(ex['exit_time'])
+                    if s2 is not None and e2 is not None:
+                        if e2 < s2: e2 += 24
+                        if s1 < e2 and s2 < e1:
+                            return jsonify({'success': False, 'error': 'אי אפשר לאשר - כבר קיימת למערכת משמרת חופפת עבור העובד בשעות אלו באותו היום!'}), 400
+
             total = calc_hours(req['entry_time'], req['exit_time'])
             cursor.execute("""INSERT INTO shift_segments (employee_id, date, domain_id, entry_time, exit_time, total_hours, notes, source)
                               VALUES (%s, %s, %s, %s, %s, %s, %s, 'correction')""",
