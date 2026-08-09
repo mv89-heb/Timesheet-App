@@ -161,6 +161,23 @@
                         <button onclick="loadShiftRequests()" class="bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 px-4 py-2 rounded-lg font-bold shadow-md flex items-center gap-2"><i class="fa-solid fa-rotate"></i> רענון</button>
                     </div>
                 </div>
+
+                <!-- לשוניות סינון לפי סטטוס -->
+                <div class="flex gap-2 mb-4 border-b dark:border-slate-700 pb-3 flex-wrap">
+                    <button onclick="filterShiftRequestsByStatus('pending')" id="req-status-tab-pending" class="px-4 py-2 rounded-lg font-bold text-sm bg-amber-500 text-white shadow-sm flex items-center gap-2">
+                        ⏳ ממתינות <span id="req-count-pending" class="bg-amber-700 text-white text-xs px-2 py-0.5 rounded-full">0</span>
+                    </button>
+                    <button onclick="filterShiftRequestsByStatus('approved')" id="req-status-tab-approved" class="px-4 py-2 rounded-lg font-bold text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 flex items-center gap-2">
+                        ✅ מאושרות <span id="req-count-approved" class="bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs px-2 py-0.5 rounded-full">0</span>
+                    </button>
+                    <button onclick="filterShiftRequestsByStatus('rejected')" id="req-status-tab-rejected" class="px-4 py-2 rounded-lg font-bold text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 flex items-center gap-2">
+                        ❌ נדחות <span id="req-count-rejected" class="bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs px-2 py-0.5 rounded-full">0</span>
+                    </button>
+                    <button onclick="filterShiftRequestsByStatus('all')" id="req-status-tab-all" class="px-4 py-2 rounded-lg font-bold text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 flex items-center gap-2">
+                        📂 הכל <span id="req-count-all" class="bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs px-2 py-0.5 rounded-full">0</span>
+                    </button>
+                </div>
+
                 <div class="overflow-x-auto border rounded-xl dark:border-slate-700">
                     <table class="w-full text-right text-sm border-collapse">
                         <thead class="bg-slate-50 dark:bg-slate-700 font-bold">
