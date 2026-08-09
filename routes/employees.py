@@ -60,6 +60,8 @@ def delete_employee(emp_id):
     with db_cursor() as (conn, cursor):
         cursor.execute("DELETE FROM employees WHERE id = %s", (emp_id,))
         cursor.execute("DELETE FROM shift_segments WHERE employee_id = %s", (emp_id,))
+        cursor.execute("DELETE FROM shift_requests WHERE employee_id = %s", (emp_id,))
+        cursor.execute("DELETE FROM time_corrections WHERE employee_id = %s", (emp_id,))
         conn.commit()
     return jsonify({'success': True})
 
