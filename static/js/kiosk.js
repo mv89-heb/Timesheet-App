@@ -4,8 +4,29 @@ function safeTippy(selector, opts) {
 }
 safeTippy('[data-tippy-content]', { animation: 'scale', theme: 'light-border', placement: 'bottom' });
 
+// מעצב שעות לקיוסק
+function formatTimeInput(el) {
+    let v = el.value.replace(/\D/g, '');
+    if (v.length > 4) v = v.slice(0, 4);
+    if (v.length > 2) {
+        let h = v.slice(0, 2); let m = v.slice(2);
+        if (parseInt(h) > 23) h = '23';
+        if (m.length === 2 && parseInt(m) > 59) m = '59';
+        el.value = `${h}:${m}`;
+    } else {
+        if (v.length === 2 && parseInt(v) > 23) v = '23';
+        el.value = v;
+    }
+}
+function padTimeInput(el) {
+    let v = el.value; if (!v) return;
+    if (v.indexOf(':') === -1) { if (v.length <= 2) el.value = (v.padStart(2, '0')) + ':00'; } 
+    else { let [h, m] = v.split(':'); el.value = h.padStart(2, '0') + ':' + (m || '00').padEnd(2, '0'); }
+}
+
 let currentPin = '', selectedActionType = '', isProcessing = false, idleTimer;
 let requestEmployeePin = '', requestEmployeeName = '';
+let punchEmployeePin = '', punchEmployeeName = '';
 
 // שעון חי
 setInterval(() => {
@@ -29,7 +50,7 @@ function resetIdleTimer() {
     }
 }
 
-// ניהול ניווט בין מסכים
+// ניהול ניווט בין מסכים - איפוס משתנים למניעת זליגת מידע (באג מס' 6)
 function selectAction(type) {
     if(isProcessing) return;
     selectedActionType = type;
@@ -59,6 +80,10 @@ function goBack() {
     document.getElementById('screen-pin').classList.add('hidden');
     if(document.getElementById('screen-correction')) document.getElementById('screen-correction').classList.add('hidden');
     document.getElementById('screen-action').classList.remove('hidden');
+    
+    // ניקוי עקבות
+    requestEmployeePin = ''; requestEmployeeName = ''; punchEmployeePin = ''; punchEmployeeName = ''; currentPin = '';
+    
     clearPin();
     clearTimeout(idleTimer);
 }
@@ -68,8 +93,23 @@ function goBackFromRequest() {
     document.getElementById('screen-request-scope').classList.add('hidden');
     document.getElementById('screen-request').classList.add('hidden');
     document.getElementById('screen-action').classList.remove('hidden');
-    requestEmployeePin = ''; requestEmployeeName = ''; selectedRequestDays = {}; requestScope = null;
+    
+    // ניקוי עקבות
+    requestEmployeePin = ''; requestEmployeeName = ''; punchEmployeePin = ''; punchEmployeeName = ''; currentPin = '';
+    
+    selectedRequestDays = {}; requestScope = null;
     requestWeekOffset = 0; requestMonthOffset = 0;
+    clearTimeout(idleTimer);
+}
+
+function goBackFromDomain() {
+    if (isProcessing) return;
+    document.getElementById('screen-domain').classList.add('hidden'); 
+    document.getElementById('screen-action').classList.remove('hidden');
+    
+    // ניקוי עקבות
+    punchEmployeePin = ''; punchEmployeeName = ''; requestEmployeePin = ''; requestEmployeeName = ''; currentPin = '';
+    
     clearTimeout(idleTimer);
 }
 
@@ -91,7 +131,6 @@ const REQUEST_MEALS = [
     { key: 'dinner', label: 'ערב' }
 ];
 
-// התיקון: מבטיחים שהתאריך נבנה לפי זמן מקומי כדי למנוע קפיצות זמן
 function toDateStr(d) {
     const y = d.getFullYear(); 
     const m = String(d.getMonth() + 1).padStart(2, '0'); 
@@ -272,7 +311,6 @@ function submitPin() {
     }).catch(err => { Swal.fire('תקלה', 'לא ניתן להתחבר לשרת.', 'error').then(() => { isProcessing = false; goBack(); }); });
 }
 
-let punchEmployeePin = '', punchEmployeeName = '';
 function showDomainScreen(empName) {
     punchEmployeeName = empName;
     document.getElementById('screen-pin').classList.add('hidden'); document.getElementById('screen-domain').classList.remove('hidden');
@@ -286,12 +324,6 @@ function showDomainScreen(empName) {
     resetIdleTimer();
 }
 
-function goBackFromDomain() {
-    if (isProcessing) return;
-    document.getElementById('screen-domain').classList.add('hidden'); document.getElementById('screen-action').classList.remove('hidden');
-    punchEmployeePin = ''; punchEmployeeName = ''; clearTimeout(idleTimer);
-}
-
 function confirmDomainAndPunch(domainId) {
     if (isProcessing) return; isProcessing = true;
     fetch('/api/kiosk/punch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: punchEmployeePin, action_type: 'entry', domain_id: domainId }) })
@@ -303,7 +335,6 @@ function confirmDomainAndPunch(domainId) {
     }).catch(() => { Swal.fire('תקלה', 'לא ניתן להתחבר לשרת.', 'error').then(() => { isProcessing = false; goBackFromDomain(); }); });
 }
 
-// התיקון: בדיקה שאכן הגיעו תחומי עבודה מהשרת (כדי למנוע תקיעה של מסך התיקון)
 function showCorrectionScreen(empName) {
     document.getElementById('screen-correction').classList.remove('hidden');
     document.getElementById('correction-greeting').innerText = `שלום ${empName}, השלם את פרטי המשמרת החסרה:`;
