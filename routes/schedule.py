@@ -35,13 +35,13 @@ def _load_month_schedule(cursor, month):
     return {'matrix': payload.get('matrix', []) or [], 'mealTimes': payload.get('mealTimes', {}) or {}}
 
 def _save_month_schedule(cursor, conn, month, matrix, meal_times):
-    payload = json.dumps({'matrix': matrix, 'mealTimes': meal_times})
+    new_modified = datetime.now().timestamp()
+    payload = json.dumps({'matrix': matrix, 'mealTimes': meal_times, 'last_modified': new_modified})
     cursor.execute("""INSERT INTO monthly_schedule (month, matrix_json) VALUES (%s, %s)
                        ON CONFLICT(month) DO UPDATE SET matrix_json=EXCLUDED.matrix_json""", (month, payload))
     conn.commit()
 
 def _try_assign_employee(matrix, meal_key, day_num, emp_name):
-    """מנסה לשבץ עובד שאושר כ'זמין' לתא ריק בטבלת השיבוץ. מחזיר 'assigned'/'already'/'full'."""
     if meal_key not in MEALS_ORDER:
         return 'full'
 
@@ -91,22 +91,34 @@ def handle_schedule():
     if request.method == 'POST':
         month = request.json.get('month')
         if not month: return jsonify({'error': 'Month is required'}), 400
-        matrix = json.dumps({'matrix': request.json.get('matrix') or [], 'mealTimes': request.json.get('mealTimes') or {}})
-        with db_cursor() as (conn, cursor):
+        incoming_modified = request.json.get('last_modified', 0)
+        
+        with db_cursor(dict_cursor=True) as (conn, cursor):
+            # הגנה מפני דריסת נתונים (Race Condition) ע"י מנהל אחר
+            cursor.execute("SELECT matrix_json FROM monthly_schedule WHERE month = %s", (month,))
+            row = cursor.fetchone()
+            if row and row['matrix_json']:
+                curr_data = json.loads(row['matrix_json'])
+                curr_modified = curr_data.get('last_modified', 0)
+                if curr_modified > incoming_modified:
+                    return jsonify({'error': 'השיבוץ שונה על ידי מנהל אחר או פעולה אוטומטית בזמן שהמסך היה פתוח. רענן את העמוד כדי לראות את הנתונים החדשים ולא לדרוס אותם.'}), 409
+
+            new_modified = datetime.now().timestamp()
+            matrix_payload = json.dumps({'matrix': request.json.get('matrix') or [], 'mealTimes': request.json.get('mealTimes') or {}, 'last_modified': new_modified})
             cursor.execute("""INSERT INTO monthly_schedule (month, matrix_json) VALUES (%s, %s) 
-                              ON CONFLICT(month) DO UPDATE SET matrix_json=EXCLUDED.matrix_json""", (month, matrix))
+                              ON CONFLICT(month) DO UPDATE SET matrix_json=EXCLUDED.matrix_json""", (month, matrix_payload))
             conn.commit()
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'last_modified': new_modified})
     else:
         month = request.args.get('month') or datetime.now().strftime('%Y-%m')
         with db_cursor(dict_cursor=True) as (conn, cursor):
             cursor.execute("SELECT matrix_json FROM monthly_schedule WHERE month = %s", (month,))
             row = cursor.fetchone()
-        if row:
+        if row and row['matrix_json']:
             data = json.loads(row['matrix_json'])
-            if isinstance(data, list): return jsonify({'matrix': data, 'mealTimes': {}})
-            return jsonify({'matrix': data.get('matrix', []), 'mealTimes': data.get('mealTimes', {})})
-        return jsonify({'matrix': [], 'mealTimes': {}})
+            if isinstance(data, list): return jsonify({'matrix': data, 'mealTimes': {}, 'last_modified': 0})
+            return jsonify({'matrix': data.get('matrix', []), 'mealTimes': data.get('mealTimes', {}), 'last_modified': data.get('last_modified', 0)})
+        return jsonify({'matrix': [], 'mealTimes': {}, 'last_modified': 0})
 
 @schedule_bp.route('/api/schedule/copy', methods=['POST'])
 @requires_role(['admin', 'manager'])
@@ -159,8 +171,6 @@ def get_shift_requests():
             day_num = int(date_str[8:10])
         except (ValueError, TypeError):
             return False
-        # בודקים רק את הארוחה הרלוונטית (או את כל השלוש אם meal=='all') - לא כל שורה בטבלה,
-        # אחרת עובד שמשובץ לצהריים "מתנגש" בטעות עם בקשת אי-זמינות לבוקר של אותו יום.
         meal_indices = range(len(MEALS_ORDER)) if meal == 'all' else ([MEALS_ORDER.index(meal)] if meal in MEALS_ORDER else [])
         target_meals = {MEALS_ORDER[mi] for mi in meal_indices}
         for mi in meal_indices:
@@ -186,8 +196,6 @@ def get_shift_requests():
     return jsonify(result)
 
 def _audit_log(action, req_id, **fields):
-    """יומן ביקורת לאישור/דחיית בקשות שיבוץ. נכתב ל-stdout (נראה בלוגים של Render/gunicorn),
-    ולא לטבלת DB חדשה - לפי הדרישה המפורשת לא לשנות את מבנה מסד הנתונים."""
     reviewer = f"emp_id:{session.get('emp_id')}" if session.get('emp_id') else 'super_admin'
     ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     parts = ' '.join(f"{k}={v}" for k, v in fields.items())
@@ -216,7 +224,6 @@ def manage_shift_request(req_id):
             _audit_log(status, req_id, auto_assigned=False, conflict=False)
             return jsonify({'success': True})
 
-        # אישור: מנסים לשבץ אוטומטית עובד שביקש "זמין לעבודה" לתא פנוי בטבלת השיבוץ
         cursor.execute("SELECT first_name, last_name FROM employees WHERE id = %s", (req['employee_id'],))
         emp = cursor.fetchone()
         emp_name = f"{emp['first_name']} {emp['last_name']}".strip() if emp else None
@@ -233,7 +240,6 @@ def manage_shift_request(req_id):
             _audit_log('approved', req_id, auto_assigned=False, conflict=False, note='not_applicable')
             return jsonify({'success': True, 'assigned': False})
 
-        # בקשות סותרות של אותו עובד לאותו מועד (גם זמין וגם לא זמין) - לא משבצים אוטומטית
         cursor.execute("""SELECT DISTINCT request_type FROM shift_requests WHERE employee_id = %s AND date = %s AND meal = %s""", (req['employee_id'], req['date'], req['meal']))
         types_here = {r['request_type'] for r in cursor.fetchall()}
         if len(types_here) > 1:
@@ -252,7 +258,6 @@ def manage_shift_request(req_id):
         full_meals = [MEAL_LABELS.get(mk, mk) for mk, r in results.items() if r == 'full']
 
         if full_meals:
-            # אין תא פנוי - לא שומרים כלום ולא מסמנים כאושר, כדי שהבקשה תישאר ניתנת לטיפול
             _audit_log('approve_blocked', req_id, reason='no_available_slot', meals=','.join(full_meals))
             meals_txt = ', '.join(full_meals)
             return jsonify({'success': False, 'conflict': True, 'message': f'אין תא פנוי ל{emp_name} ב{"ארוחות" if len(full_meals) > 1 else "ארוחת"} {meals_txt} ביום {day_num}. אפשר להוסיף שורת "מלצר נוסף" לארוחה בטבלת השיבוץ ואז לאשר שוב.'})
