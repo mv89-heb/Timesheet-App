@@ -1,13 +1,12 @@
 let myChart = null, allEmployees = [], empDataMap = {}, currentShiftsMap = {}, currentEmpId = null, currentEmpName = "";
 const dayNames = ['א\'', 'ב\'', 'ג\'', 'ד\'', 'ה\'', 'ו\'', 'שבת'];
+let currentScheduleLastModified = 0; // התיקון למניעת דריסות
 
-// פילטר אבטחה (באג מס' 2 - XSS)
 function escapeHTML(str) {
     if (!str) return '';
     return String(str).replace(/[&<>'"]/g, match => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[match]));
 }
 
-// מעצב שעות טקסטואלי אוטומטי לפורמט 24H
 function formatTimeInput(el) {
     let v = el.value.replace(/\D/g, '');
     if (v.length > 4) v = v.slice(0, 4);
@@ -31,7 +30,7 @@ const _origFetch = window.fetch;
 window.fetch = function(url, opts) {
     return _origFetch(url, opts).then(res => {
         if (res.status === 401 && typeof url === 'string' && url.startsWith('/api/') && !url.includes('/api/login') && !url.includes('/api/check_auth')) {
-            stopPolling(); // תיקון באג מס' 3 (הפצצת שרת)
+            stopPolling(); 
             document.getElementById('main-app').classList.add('hidden'); document.getElementById('main-app').classList.remove('flex');
             document.getElementById('login-screen').classList.remove('hidden');
         }
@@ -613,8 +612,8 @@ function renderSegmentRow(dateStr, seg) {
     const originalRaw = JSON.stringify({ domain_id: seg.domain_id != null ? String(seg.domain_id) : '', entry: seg.entry || '', exit: seg.exit || '', total_hours: seg.total_hours || '', notes: seg.notes || '' });
     const original = originalRaw.replace(/'/g, '&#39;');
     
-    // התיקון: שעות טקסט (24H) בלבד במקום type="time"
-    return `<div class="flex flex-wrap items-start gap-2 bg-slate-50 dark:bg-slate-700/40 rounded-lg p-2 transition-shadow" data-segment-row data-source="${seg.source || 'manual'}" data-original='${original}'>
+    // מעבר לשדות טקסט והכנסת ה-ID (תיקון באגים)
+    return `<div class="flex flex-wrap items-start gap-2 bg-slate-50 dark:bg-slate-700/40 rounded-lg p-2 transition-shadow" data-segment-row data-id="${seg.id || ''}" data-source="${seg.source || 'manual'}" data-original='${original}'>
         ${sourceBadgeHtml(seg.source || 'manual')}
         <select class="grid-input w-32" data-field="domain_id" onchange="onSegmentFieldChange(this, '${dateStr}')" onkeydown="onSegmentFieldKeydown(event, '${dateStr}')">${domainOptions}</select>
         <input type="text" class="grid-input w-28 text-center" dir="ltr" placeholder="00:00" data-field="entry" value="${seg.entry || ''}" oninput="formatTimeInput(this); onSegmentFieldChange(this, '${dateStr}')" onblur="padTimeInput(this); onSegmentFieldChange(this, '${dateStr}')" onkeydown="onSegmentFieldKeydown(event, '${dateStr}')">
@@ -745,6 +744,7 @@ function saveDaySegments(dateStr) {
     const rows = wrap.querySelectorAll('[data-segment-row]'); const segments = [];
     rows.forEach(row => {
         const getVal = (f) => row.querySelector(`[data-field="${f}"]`).value;
+        const segId = row.getAttribute('data-id');
         const entry = getVal('entry'), exit = getVal('exit'); const domainSelect = row.querySelector('[data-field="domain_id"]');
         const t2d = (t) => { if (!t) return null; let [h, m] = t.split(':').map(Number); return h + (m / 60); };
         let autoTotal = 0; if (entry && exit) { let diff = t2d(exit) - t2d(entry); if (diff < 0) diff += 24; autoTotal = diff; }
@@ -752,7 +752,7 @@ function saveDaySegments(dateStr) {
         
         if (!entry && !exit && !totalInput.value && !getVal('notes')) return;
         
-        segments.push({ domain_id: domainSelect ? domainSelect.value : null, entry: entry, exit: exit, source: row.dataset.source || 'manual', total_hours: totalInput.value || 0, notes: getVal('notes') });
+        segments.push({ id: segId, domain_id: domainSelect ? domainSelect.value : null, entry: entry, exit: exit, source: row.dataset.source || 'manual', total_hours: totalInput.value || 0, notes: getVal('notes') });
     });
 
     showSaveIndicator('saving');
@@ -783,7 +783,6 @@ function commitPendingCopy(dateStr) {
 function cancelPendingCopy(dateStr) { delete pendingCopySegments[dateStr]; refreshDayCard(dateStr); renderPendingCopyBanner(); }
 
 function copyFromYesterday(dateStr) {
-    // תיקון באג מס' 4 - Timezone Safe Date parsing
     const [y, m, d] = dateStr.split('-').map(Number);
     const dateObj = new Date(y, m - 1, d);
     dateObj.setDate(dateObj.getDate() - 1);
@@ -823,8 +822,6 @@ function smartCopyPrompt(dateStr) {
     }).then(res => {
         if (!res.isConfirmed) return;
         const { end, days } = res.value;
-        
-        // תיקון באג Timezone
         const [sy, sm, sd] = dateStr.split('-').map(Number);
         const startD = new Date(sy, sm - 1, sd);
         const [ey, em, ed] = end.split('-').map(Number);
@@ -983,10 +980,10 @@ function triggerAutoSave() {
     clearTimeout(scheduleTimeout); scheduleTimeout = setTimeout(() => { try { localStorage.setItem('schedule_draft', JSON.stringify({ month: document.getElementById('schedule-month-picker').value, matrix: getMatrixFromTable(), mealTimes: getMealTimesFromTable() })); } catch(e) {} }, 800);
 }
 
-// תיקון שחזור טיוטת העבודה בלוח השיבוץ (באג מס' 5)
 function loadSchedule() { 
     const monthVal = document.getElementById('schedule-month-picker').value; currentScheduleWeekIndex = null;
     
+    // בדיקת טיוטה שלא נשמרה ושחזור במידת הצורך
     const draftRaw = localStorage.getItem('schedule_draft');
     if (draftRaw) {
         try {
@@ -1024,7 +1021,13 @@ function loadSchedule() {
 
     function fetchFromServer() {
         Promise.all([ fetch(`/api/schedule?month=${monthVal}`, { cache: 'no-store' }).then(r=>r.json()), fetch(`/api/hebrew_calendar?month=${monthVal}`, { cache: 'no-store' }).then(r=>r.json()).catch(() => ({ days: {} })), loadScheduleAvailabilityMap(monthVal) ])
-        .then(([d, heb]) => { currentScheduleHebrewCalendar = heb.days || {}; renderScheduleTable(d.matrix, d.mealTimes || {}); applyAvailabilityBadges(); document.getElementById('unsaved-badge').classList.add('hidden'); }); 
+        .then(([d, heb]) => { 
+            currentScheduleHebrewCalendar = heb.days || {}; 
+            currentScheduleLastModified = d.last_modified || 0;
+            renderScheduleTable(d.matrix, d.mealTimes || {}); 
+            applyAvailabilityBadges(); 
+            document.getElementById('unsaved-badge').classList.add('hidden'); 
+        }); 
     }
 }
 
@@ -1051,25 +1054,8 @@ function changeScheduleWeek(delta) { if (!currentScheduleWeeks.length) return; c
 function copyPreviousSchedule() {
     const currentMonth = document.getElementById('schedule-month-picker').value;
     if (!currentMonth) return;
-    
-    Swal.fire({
-        title: 'שכפול שיבוץ לחודש זה',
-        text: 'פעולה זו תעתיק את כל השיבוצים מהחודש הקודם אל החודש הנוכחי.',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#4f46e5',
-        cancelButtonColor: '#d33',
-        confirmButtonText: 'כן, שכפל עכשיו',
-        cancelButtonText: 'ביטול'
-    }).then(res => {
-        if(res.isConfirmed) {
-            fetch('/api/schedule/copy', {
-                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ target_month: currentMonth })
-            }).then(r => r.json()).then(data => {
-                if(data.success) { Swal.fire('בוצע!', data.message, 'success'); loadSchedule(); } 
-                else Swal.fire('שגיאה', data.error, 'error');
-            }).catch(() => Swal.fire('שגיאה', 'בעיית תקשורת', 'error'));
-        }
+    Swal.fire({ title: 'שכפול שיבוץ לחודש זה', text: 'פעולה זו תעתיק את כל השיבוצים מהחודש הקודם אל החודש הנוכחי.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#4f46e5', cancelButtonColor: '#d33', confirmButtonText: 'כן, שכפל עכשיו', cancelButtonText: 'ביטול' }).then(res => {
+        if(res.isConfirmed) { fetch('/api/schedule/copy', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ target_month: currentMonth }) }).then(r => r.json()).then(data => { if(data.success) { Swal.fire('בוצע!', data.message, 'success'); loadSchedule(); } else Swal.fire('שגיאה', data.error, 'error'); }).catch(() => Swal.fire('שגיאה', 'בעיית תקשורת בביצוע הפעולה', 'error')); }
     });
 }
 
@@ -1129,7 +1115,7 @@ function renderShiftRequestsTable() {
 
     [...filteredRequests].sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(req => {
         const tr = document.createElement('tr'); tr.className = req.has_conflict ? 'request-row-conflict' : 'hover:bg-slate-50 dark:hover:bg-slate-700/40';
-        tr.innerHTML = `<td class="p-3 font-bold">${escapeHTML(req.employee_name)}</td><td class="p-3">${req.date}</td><td class="p-3">${req.meal_label}</td><td class="p-3"><span class="px-2 py-1 rounded-full text-xs font-bold ${typeColors[req.request_type] || ''}">${req.request_type_label}</span></td><td class="p-3 text-slate-500 max-w-xs truncate" title="${escapeHTML(req.note)}">${escapeHTML(req.note) || '-'}</td><td class="p-3"><span class="px-2 py-1 rounded-full text-xs font-bold ${statusColors[req.status] || ''}">${statusLabels[req.status] || req.status}</span></td><td class="p-3">${req.has_conflict ? `<span class="request-conflict-badge inline-flex items-center gap-1 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full" title="${(req.conflict_reasons || []).join(' | ')}"><i class="fa-solid fa-triangle-exclamation"></i> התנגשות</span>` : '<span class="text-slate-300">-</span>'}</td><td class="p-3"><div class="flex gap-1 flex-wrap"><button onclick="jumpToScheduleFromRequest('${req.date}')" title="עבור לשיבוץ" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-calendar-days"></i></button>${req.status !== 'approved' ? `<button onclick="setShiftRequestStatus(${req.id}, 'approved')" title="אשר" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-check"></i> אשר</button>` : ''}${req.status !== 'rejected' ? `<button onclick="setShiftRequestStatus(${req.id}, 'rejected')" title="נדחה" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-xmark"></i> דחה</button>` : ''}<button onclick="deleteShiftRequest(${req.id})" title="מחק" class="bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-trash"></i></button></div></td>`;
+        tr.innerHTML = `<td class="p-3 font-bold">${escapeHTML(req.employee_name)}</td><td class="p-3">${req.date}</td><td class="p-3">${req.meal_label}</td><td class="p-3"><span class="px-2 py-1 rounded-full text-xs font-bold ${typeColors[req.request_type] || ''}">${req.request_type_label}</span></td><td class="p-3 text-slate-500 max-w-xs truncate" title="${escapeHTML(req.note)}">${escapeHTML(req.note) || '-'}</td><td class="p-3"><span class="px-2 py-1 rounded-full text-xs font-bold ${statusColors[req.status] || ''}">${statusLabels[req.status] || req.status}</span></td><td class="p-3">${req.has_conflict ? `<span class="request-conflict-badge inline-flex items-center gap-1 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full" title="${(req.conflict_reasons || []).join(' | ')}"><i class="fa-solid fa-triangle-exclamation"></i> התנגשות</span>` : '<span class="text-slate-300">-</span>'}</td><td class="p-3"><div class="flex gap-1 flex-wrap"><button onclick="jumpToScheduleFromRequest('${req.date}')" title="עבור לשיבוץ" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-calendar-days"></i></button>${req.status !== 'approved' ? `<button onclick="setShiftRequestStatus(${req.id}, 'approved')" title="אשר" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-check"></i> אשר</button>` : ''}${req.status !== 'rejected' ? `<button onclick="setShiftRequestStatus(${req.id}, 'rejected')" title="דחה" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-xmark"></i> דחה</button>` : ''}<button onclick="deleteShiftRequest(${req.id})" title="מחק" class="bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-trash"></i></button></div></td>`;
         tbody.appendChild(tr);
     });
 }
@@ -1169,6 +1155,7 @@ function renderScheduleTable(matrix = [], mealTimes = {}) {
     thead.innerHTML = headHtml + "</tr>"; table.appendChild(thead); const tbody = document.createElement("tbody");
     meals.forEach(meal => {
         let timeHtml = `<td class="sticky-col bg-gray-200 font-bold" data-meal-label="${meal.key}">${meal.name} / שעה</td>`;
+        // מעבר מ-time לטקסט
         for(let d=1; d<=daysInMonth; d++){ timeHtml += `<td class="bg-gray-100 meal-time-cell" data-day="${d}"><div class="meal-time-wrap"><input type="text" dir="ltr" class="meal-time-input" data-meal="${meal.key}" data-day="${d}" value="${mealTimes[`${meal.key}_${d}`] || meal.time}" oninput="formatTimeInput(this); triggerAutoSave()" onblur="padTimeInput(this)"><button type="button" class="meal-mute-btn" onclick="toggleMuteMealDay('${meal.key}', ${d})"><i class="fa-solid fa-eye-slash"></i></button></div></td>`; }
         const timeRow = document.createElement("tr"); timeRow.innerHTML = timeHtml; timeRow.setAttribute("data-meal", meal.key); tbody.appendChild(timeRow);
         roles.forEach(role => {
@@ -1268,9 +1255,14 @@ function saveScheduleToDB() {
 }
 
 function doSaveScheduleToDB() {
-    fetch("/api/schedule", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ month:document.getElementById("schedule-month-picker").value, matrix:getMatrixFromTable(), mealTimes:getMealTimesFromTable() }) })
+    fetch("/api/schedule", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ month:document.getElementById("schedule-month-picker").value, matrix:getMatrixFromTable(), mealTimes:getMealTimesFromTable(), last_modified: currentScheduleLastModified }) })
     .then(async r => { const data = await r.json(); if(!r.ok) throw new Error(data.error || "Server Error"); return data; })
-    .then(() => { localStorage.removeItem("schedule_draft"); const badge = document.getElementById("unsaved-badge"); if(badge) badge.classList.add("hidden"); Swal.fire({ icon:"success", title:"השיבוץ נשמר", toast: true, position: 'top', showConfirmButton: false, timer: 2000 }); })
+    .then((data) => { 
+        currentScheduleLastModified = data.last_modified || currentScheduleLastModified;
+        localStorage.removeItem("schedule_draft"); 
+        const badge = document.getElementById("unsaved-badge"); if(badge) badge.classList.add("hidden"); 
+        Swal.fire({ icon:"success", title:"השיבוץ נשמר", toast: true, position: 'top', showConfirmButton: false, timer: 2000 }); 
+    })
     .catch(err => { Swal.fire({ icon:"error", title:"השמירה נכשלה", text:err.message }); });
 }
 
