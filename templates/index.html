@@ -126,7 +126,6 @@
                     <div><h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-calendar-days text-blue-500"></i> לוח שיבוץ חודשי</h2></div>
                     <div class="flex gap-3 items-center flex-wrap">
                         
-                        <!-- כפתור חדש משלב 4: שכפול -->
                         <button onclick="copyPreviousSchedule()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold shadow-md flex items-center gap-2">
                             <i class="fa-solid fa-copy"></i> שכפל מחודש קודם
                         </button>
@@ -153,6 +152,7 @@
                 </div>
             </section>
 
+            <!-- הבלוק המעודכן עם הלשוניות לסינון הסטטוסים -->
             <section id="content-requests" class="hidden bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex-col">
                 <div class="flex justify-between items-center mb-4 border-b pb-4 dark:border-slate-700 flex-wrap gap-4">
                     <div><h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-inbox text-blue-500"></i> בקשות שיבוץ מעובדים</h2></div>
@@ -162,7 +162,6 @@
                     </div>
                 </div>
 
-                <!-- לשוניות סינון לפי סטטוס -->
                 <div class="flex gap-2 mb-4 border-b dark:border-slate-700 pb-3 flex-wrap">
                     <button onclick="filterShiftRequestsByStatus('pending')" id="req-status-tab-pending" class="px-4 py-2 rounded-lg font-bold text-sm bg-amber-500 text-white shadow-sm flex items-center gap-2">
                         ⏳ ממתינות <span id="req-count-pending" class="bg-amber-700 text-white text-xs px-2 py-0.5 rounded-full">0</span>
@@ -283,7 +282,6 @@
         </div>
     </div>
 
-    <!-- ייבוא כל לוגיקת ה-JS שלנו דרך קובץ נפרד -->
     <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
 </body>
 </html>
