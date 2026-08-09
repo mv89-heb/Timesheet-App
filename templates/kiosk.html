@@ -182,14 +182,15 @@
                     <select id="corr-domain" class="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 font-bold text-lg" required></select>
                 </div>
 
+                <!-- תיקון: מעבר מ-type="time" לשדות טקסט מעוצבים -->
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-bold text-slate-600 mb-1">שעת התחלה *</label>
-                        <input type="time" id="corr-entry" class="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 font-bold text-xl text-center" required>
+                        <input type="text" id="corr-entry" class="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 font-bold text-xl text-center" dir="ltr" placeholder="00:00" oninput="formatTimeInput(this)" onblur="padTimeInput(this)" required>
                     </div>
                     <div>
                         <label class="block text-sm font-bold text-slate-600 mb-1">שעת סיום *</label>
-                        <input type="time" id="corr-exit" class="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 font-bold text-xl text-center" required>
+                        <input type="text" id="corr-exit" class="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 font-bold text-xl text-center" dir="ltr" placeholder="00:00" oninput="formatTimeInput(this)" onblur="padTimeInput(this)" required>
                     </div>
                 </div>
 
