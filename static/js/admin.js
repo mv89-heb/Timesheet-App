@@ -1,9 +1,6 @@
 let myChart = null, allEmployees = [], empDataMap = {}, currentShiftsMap = {}, currentEmpId = null, currentEmpName = "";
 const dayNames = ['א\'', 'ב\'', 'ג\'', 'ד\'', 'ה\'', 'ו\'', 'שבת'];
 
-// עוטפים את fetch הגלובלי: אם בקשה כלשהי ל-API שלנו מחזירה 401 (לא מאומת /
-// session פגומה), חוזרים מיד למסך ההתחברות במקום להשאיר את המסך תקוע
-// "ריק" עם קריאות שכולן נכשלות בשקט.
 const _origFetch = window.fetch;
 window.fetch = function(url, opts) {
     return _origFetch(url, opts).then(res => {
@@ -89,10 +86,7 @@ function switchTab(tabId) {
 
 // ----------------- DASHBOARD -----------------
 
-// סף אזהרה (שעות) למשמרת שנמשכת יותר מדי זמן. כרגע קבוע בקוד; מועמד טבעי
-// להפוך בעתיד להגדרה אמיתית תחת "הגדרות" (כמו סף פער השעות שכבר קיים שם).
 const LIVE_SHIFT_WARNING_HOURS = 10;
-
 let mainPollInterval = null;
 let liveTimerInterval = null;
 
@@ -107,7 +101,6 @@ function renderDashboardSkeleton() {
     const live = document.getElementById('live-employees-list'); if (live && !live.dataset.loaded) live.innerHTML = skeletonBlocks(3, 'h-16');
 }
 
-// מחשב זמן שחלף מאז שעת כניסה (HH:MM), תומך במעבר חצות
 function elapsedSinceEntry(entryTime) {
     if (!entryTime) return null;
     const [h, mnt] = entryTime.split(':').map(Number);
@@ -118,7 +111,6 @@ function elapsedSinceEntry(entryTime) {
     return { text: `${String(Math.floor(diffMinutes / 60)).padStart(2, '0')}:${String(diffMinutes % 60).padStart(2, '0')}`, hours: diffMinutes / 60 };
 }
 
-// מעדכן את כל תגי הזמן החי במקום (בלי לרנדר מחדש את כל הרשימה) - נקרא כל דקה
 function updateLiveTimers() {
     document.querySelectorAll('[data-live-entry]').forEach(el => {
         const elapsed = elapsedSinceEntry(el.dataset.liveEntry);
@@ -132,7 +124,6 @@ function updateLiveTimers() {
 
 function loadDashboard() {
     fetch('/api/dashboard', { cache: 'no-store' }).then(r=>r.json()).then(d => {
-        // --- Dashboard Health: כרטיסי פעימה מהירה, נבנים כולם מנתונים שכבר הגיעו ב-payload ---
         const healthContainer = document.getElementById('dash-health-strip');
         if (healthContainer) {
             healthContainer.dataset.loaded = '1';
@@ -247,7 +238,6 @@ function loadDashboard() {
 
 let trendChart = null;
 function loadDashboardTrend() {
-    // נטען פעם אחת בכניסה לטאב (לא בכל Polling) - מגמה חודשית לא משתנה כל 10 שניות
     fetch('/api/dashboard/trend?months=6', { cache: 'no-store' }).then(r => r.json()).then(d => {
         const skelT = document.getElementById('trendChart-skeleton'); if (skelT) skelT.classList.add('hidden');
         document.getElementById('trendChart').classList.remove('hidden');
@@ -379,9 +369,9 @@ function deleteEmp(id, name) {
 let currentHebrewCalendar = {};
 let activeHoursDomainFilter = null;
 let currentHoursView = 'month';
-let pendingCopySegments = {};   // dateStr -> [segments] שממתינים לאישור ידני (לא נשמרו) - Duplicate Day / Smart Copy
-let saveDebounceTimers = {};    // dateStr -> timeout id - שמירה מאוחדת לעריכת שורה (לא שמירה בכל blur בנפרד)
-let deletedSegmentUndo = null;  // { dateStr, rowData } - Undo למחיקת משמרת
+let pendingCopySegments = {};   
+let saveDebounceTimers = {};    
+let deletedSegmentUndo = null;  
 const AUTO_SAVE_DEBOUNCE_MS = 700;
 const UNDO_WINDOW_MS = 6000;
 
@@ -394,8 +384,6 @@ function loadShiftsForGrid(id, name) {
     Promise.all([fetchMonthShifts(id, monthVal), loadHebrewCalendarForMonth(monthVal)]).then(renderHoursView);
 }
 
-// טוען משמרות לחודש הנבחר בלבד (לא כל ההיסטוריה) - שיפור ביצועים לעובדים ותיקים.
-// נתוני חודשים אחרים שכבר נטענו במהלך הפעלת "העתק מיום אחר" נשארים במטמון (currentShiftsMap) ולא נמחקים.
 function fetchMonthShifts(empId, monthVal) {
     return fetch(`/api/shifts/${empId}?month=${monthVal}`, { cache: 'no-store' }).then(r => r.json()).then(shifts => {
         Object.keys(currentShiftsMap).filter(d => d.startsWith(monthVal)).forEach(d => delete currentShiftsMap[d]);
@@ -403,8 +391,6 @@ function fetchMonthShifts(empId, monthVal) {
     });
 }
 
-// שולף יום בודד אם הוא לא כבר בזיכרון (למשל "אתמול" שנמצא בחודש קודם, או תאריך שנבחר ל"העתק מיום אחר").
-// טעינה על-פי-דרישה בלבד, לא כברירת מחדל - נמנעים מטעינת נתונים שלא נדרשים.
 function fetchDayIfMissing(dateStr) {
     if (currentShiftsMap[dateStr]) return Promise.resolve(currentShiftsMap[dateStr]);
     const monthOfDate = dateStr.slice(0, 7);
@@ -476,8 +462,6 @@ function renderHoursDomainTabs() {
     tabsContainer.innerHTML = allTab + domainTabs;
 }
 
-// פס סיכום - מציג רק נתונים שכבר קיימים במערכת (ללא "שעות חוסרות"/"שעות נוספות" שאין להן עדיין
-// מושג של "יעד שעות" מוגדר במערכת - להימנע מהצגת מספרים מומצאים).
 function renderHoursSummaryBar() {
     const bar = document.getElementById('hours-summary-bar'); if (!bar) return;
     const monthVal = document.getElementById('month-picker').value; if (!monthVal) { bar.innerHTML = ''; return; }
@@ -621,7 +605,6 @@ function checkRowDirty(row) {
     return dirty;
 }
 
-// אזהרות בזמן עריכה - לא חוסמות שמירה, רק מציגות רמז ברור מתחת לשורה
 function renderRowValidation(row, dateStr) {
     const wrap = row.closest('[data-day-segments]'); const allRows = wrap ? Array.from(wrap.querySelectorAll('[data-segment-row]')) : [row];
     const entry = row.querySelector('[data-field="entry"]').value, exit = row.querySelector('[data-field="exit"]').value, domainId = row.querySelector('[data-field="domain_id"]').value;
@@ -672,7 +655,6 @@ function scheduleAutoSave(dateStr) {
 }
 function flushAutoSave(dateStr) { clearTimeout(saveDebounceTimers[dateStr]); delete saveDebounceTimers[dateStr]; saveDaySegments(dateStr); }
 
-// Ctrl+S/Cmd+S בתוך שורת משמרת - שומר מיידית בלי לחכות ל-debounce
 document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
         const row = document.activeElement ? document.activeElement.closest('[data-segment-row]') : null;
@@ -737,7 +719,9 @@ function saveDaySegments(dateStr) {
         const t2d = (t) => { if (!t) return null; let [h, m] = t.split(':').map(Number); return h + (m / 60); };
         let autoTotal = 0; if (entry && exit) { let diff = t2d(exit) - t2d(entry); if (diff < 0) diff += 24; autoTotal = diff; }
         const totalInput = row.querySelector('[data-field="total_hours"]'); if (autoTotal > 0) totalInput.value = autoTotal.toFixed(2);
-        if (!entry && !exit) return;
+        
+        if (!entry && !exit && !totalInput.value && !getVal('notes')) return;
+        
         segments.push({ domain_id: domainSelect ? domainSelect.value : null, entry: entry, exit: exit, source: row.dataset.source || 'manual', total_hours: totalInput.value || 0, notes: getVal('notes') });
     });
 
@@ -756,7 +740,6 @@ function refreshDayCard(dateStr) {
     existing.replaceWith(buildDayCardElement(dateStr));
 }
 
-// --- העתקת משמרות (מאתמול / מיום אחר / לימים נוספים) - תמיד "מילוי בלבד", לא שומר אוטומטית ---
 function applyPendingCopy(dateStr, sourceSegments) {
     pendingCopySegments[dateStr] = sourceSegments.map(s => ({ domain_id: s.domain_id, entry: s.entry, exit: s.exit, total_hours: s.total_hours, notes: s.notes, source: 'manual' }));
     refreshDayCard(dateStr); renderPendingCopyBanner();
@@ -899,8 +882,7 @@ function decodeExtraRoleField(raw) { if (typeof raw === 'string' && raw.startsWi
 
 let scheduleTimeout, currentScheduleHebrewCalendar = {}, currentScheduleWeekIndex = null, currentScheduleWeeks = [];
 
-// --- זמינות עובדים (חיווי עדין בתא + אזהרת התנגשות לפני שמירה) ---
-let scheduleAvailabilityMap = {}; // `${שם}|${תאריך}|${ארוחה}` -> 'available' | 'pending_available' | 'unavailable'
+let scheduleAvailabilityMap = {}; 
 const MEAL_KEY_LABEL = { breakfast: 'בוקר', lunch: 'צהריים', dinner: 'ערב' };
 const AVAILABILITY_BADGE = { available: { icon: '🟢', title: 'העובד ביקש זמינות למועד זה (מאושר)' }, pending_available: { icon: '🟡', title: 'קיימת בקשת זמינות למועד זה (ממתינה לאישור)' }, unavailable: { icon: '🔴', title: 'העובד ביקש אי-זמינות למועד זה' } };
 
@@ -945,7 +927,6 @@ function applyAvailabilityBadges() {
     });
 }
 
-// סורק את כל הטבלה לפני שמירה ומאתר עובדים ששובצו למועד שבו ביקשו אי-זמינות מאושרת/קיימת
 function findScheduleAvailabilityConflicts() {
     const monthVal = document.getElementById('schedule-month-picker').value; const conflicts = [];
     document.querySelectorAll('#schedule-table tbody tr[data-meal] td.employee-cell').forEach(td => {
@@ -989,7 +970,6 @@ function applyScheduleWeekFilter() {
 }
 function changeScheduleWeek(delta) { if (!currentScheduleWeeks.length) return; const newIndex = currentScheduleWeekIndex + delta; if (newIndex < 0 || newIndex >= currentScheduleWeeks.length) return; currentScheduleWeekIndex = newIndex; applyScheduleWeekFilter(); }
 
-// ======= חדש: פונקציית שכפול שיבוץ מהחודש הקודם ========
 function copyPreviousSchedule() {
     const currentMonth = document.getElementById('schedule-month-picker').value;
     if (!currentMonth) return;
@@ -1012,7 +992,7 @@ function copyPreviousSchedule() {
             }).then(r => r.json()).then(data => {
                 if(data.success) {
                     Swal.fire('בוצע!', data.message, 'success');
-                    loadSchedule(); // רענון הלוח למצב המשוכפל
+                    loadSchedule(); 
                 } else {
                     Swal.fire('שגיאה', data.error, 'error');
                 }
@@ -1020,7 +1000,6 @@ function copyPreviousSchedule() {
         }
     });
 }
-// =========================================================
 
 let allShiftRequests = [];
 function refreshRequestsBadge() { fetch('/api/shift_requests', { cache: 'no-store' }).then(r => r.json()).then(list => { const badge = document.getElementById('requests-badge'); if (!badge) return; const pendingCount = Array.isArray(list) ? list.filter(r => r.status === 'pending').length : 0; if (pendingCount > 0) { badge.classList.remove('hidden'); badge.textContent = pendingCount; } else badge.classList.add('hidden'); }).catch(() => {}); }
@@ -1283,7 +1262,7 @@ function pollTick() {
 }
 
 function startPolling() {
-    if (mainPollInterval) return; // מונע יצירת Timer כפול
+    if (mainPollInterval) return; 
     mainPollInterval = setInterval(pollTick, 10000);
     if (!liveTimerInterval) liveTimerInterval = setInterval(updateLiveTimers, 60000);
 }
@@ -1293,13 +1272,12 @@ function stopPolling() {
     if (liveTimerInterval) { clearInterval(liveTimerInterval); liveTimerInterval = null; }
 }
 
-// עוצר לגמרי כשהדפדפן/הטאב לא פעיל, מחדש מיד עם החזרה - חוסך קריאות שרת מיותרות
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
         stopPolling();
     } else {
         startPolling();
-        pollTick(); // רענון מיידי עם החזרה, לא מחכים ל-tick הבא
+        pollTick(); 
         updateLiveTimers();
     }
 });
