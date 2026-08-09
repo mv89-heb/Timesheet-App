@@ -12,7 +12,6 @@ setInterval(() => {
     document.getElementById('clock').innerText = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }, 1000);
 
-// מנגנון חזרה אוטומטית (Idle Timer)
 function resetIdleTimer() {
     clearTimeout(idleTimer);
     const pinVisible = !document.getElementById('screen-pin').classList.contains('hidden');
@@ -92,9 +91,17 @@ const REQUEST_MEALS = [
     { key: 'dinner', label: 'ערב' }
 ];
 
+// התיקון: מבטיחים שהתאריך נבנה לפי זמן מקומי כדי למנוע קפיצות זמן
 function toDateStr(d) {
-    const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, '0'); const day = String(d.getDate()).padStart(2, '0');
+    const y = d.getFullYear(); 
+    const m = String(d.getMonth() + 1).padStart(2, '0'); 
+    const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
+}
+
+function parseLocalDate(dateStr) {
+    const [y, m, d] = dateStr.split('-');
+    return new Date(y, m - 1, d);
 }
 
 function chooseRequestScope(scope) {
@@ -174,7 +181,7 @@ function renderDayCards() {
     const container = document.getElementById('req-day-cards'); const dates = Object.keys(selectedRequestDays).sort();
     if (!dates.length) { container.innerHTML = ''; return; }
     container.innerHTML = dates.map(dateStr => {
-        const day = selectedRequestDays[dateStr]; const d = new Date(dateStr); const dow = d.getDay(); const dateLabel = `${requestDayNames[dow]} ${d.getDate()}/${d.getMonth() + 1}`;
+        const day = selectedRequestDays[dateStr]; const d = parseLocalDate(dateStr); const dow = d.getDay(); const dateLabel = `${requestDayNames[dow]} ${d.getDate()}/${d.getMonth() + 1}`;
         const mealButtons = REQUEST_MEALS.map(m => {
             const on = day.meals[m.key]; const cls = on ? "flex-1 border-2 border-blue-500 bg-blue-50 text-blue-700 rounded-lg py-2 text-xs font-bold" : "flex-1 border border-slate-200 bg-white text-slate-400 rounded-lg py-2 text-xs font-bold";
             return `<button type="button" onclick="toggleDayMeal('${dateStr}','${m.key}')" class="${cls}">${m.label}</button>`;
@@ -296,6 +303,7 @@ function confirmDomainAndPunch(domainId) {
     }).catch(() => { Swal.fire('תקלה', 'לא ניתן להתחבר לשרת.', 'error').then(() => { isProcessing = false; goBackFromDomain(); }); });
 }
 
+// התיקון: בדיקה שאכן הגיעו תחומי עבודה מהשרת (כדי למנוע תקיעה של מסך התיקון)
 function showCorrectionScreen(empName) {
     document.getElementById('screen-correction').classList.remove('hidden');
     document.getElementById('correction-greeting').innerText = `שלום ${empName}, השלם את פרטי המשמרת החסרה:`;
@@ -303,7 +311,13 @@ function showCorrectionScreen(empName) {
     
     fetch('/api/kiosk/domains', { cache: 'no-store' }).then(r => r.json()).then(domains => {
         const select = document.getElementById('corr-domain');
-        select.innerHTML = domains.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+        if (Array.isArray(domains) && domains.length > 0) {
+            select.innerHTML = domains.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+        } else {
+            select.innerHTML = `<option value="">לא הוגדרו תחומים במערכת</option>`;
+        }
+    }).catch(() => {
+        document.getElementById('corr-domain').innerHTML = `<option value="">שגיאה בטעינת תחומים</option>`;
     });
     resetIdleTimer();
 }
