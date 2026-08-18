@@ -56,8 +56,10 @@
         const daysContainer = document.getElementById('month-grid-days');
         const tableWrap = document.getElementById('month-grid-table-wrap');
 
-        window.currentEmpId = empId;
-        window.currentEmpName = name || '';
+        // These are top-level lexical variables created by admin.js, so they
+        // must be assigned directly rather than through window.*.
+        if (typeof currentEmpId !== 'undefined') currentEmpId = empId;
+        if (typeof currentEmpName !== 'undefined') currentEmpName = name || '';
 
         if (nameEl) nameEl.textContent = name || 'עובד';
         if (details) details.classList.remove('hidden');
@@ -108,11 +110,12 @@
         tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-slate-400"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2 block"></i>טוען עובדים...</td></tr>';
 
         try {
-            let employees = Array.isArray(window.allEmployees) ? window.allEmployees : [];
+            // allEmployees is a top-level lexical variable in admin.js.
+            let employees = (typeof allEmployees !== 'undefined' && Array.isArray(allEmployees)) ? allEmployees : [];
             if (!employees.length) {
                 const data = await fetchJson('/api/employees');
                 employees = Array.isArray(data) ? data : [];
-                window.allEmployees = employees;
+                if (typeof allEmployees !== 'undefined') allEmployees = employees;
             }
 
             if (!employees.length) {
