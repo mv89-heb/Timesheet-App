@@ -24,7 +24,7 @@ def add_header(response):
     if response.content_type and response.content_type.startswith('text/html'):
         try:
             html = response.get_data(as_text=True)
-            marker = "<script src=\"{{ url_for('static', filename='js/admin-fixes.js') }}\"></script>"
+            marker = '<script src="/static/js/admin-fixes.js"></script>'
             if 'admin-fixes.js' not in html and '</body>' in html:
                 html = html.replace('</body>', f'{marker}\n</body>')
                 response.set_data(html)
