@@ -43,50 +43,22 @@
     function showLoadError(container, message) {
         if (!container) return;
         const cell = container.tagName === 'TBODY';
-        const body = `
-            <div class="text-center py-10 px-4 text-rose-600 dark:text-rose-400">
-                <i class="fa-solid fa-triangle-exclamation text-3xl mb-3 block"></i>
-                <div class="font-bold mb-2">לא ניתן לטעון את הנתונים</div>
-                <div class="text-sm text-slate-500 dark:text-slate-400 mb-4">${escape(message)}</div>
-                <button onclick="location.reload()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold">נסה שוב</button>
-            </div>`;
+        const body = `<div class="text-center py-10 px-4 text-rose-600 dark:text-rose-400"><i class="fa-solid fa-triangle-exclamation text-3xl mb-3 block"></i><div class="font-bold mb-2">לא ניתן לטעון את הנתונים</div><div class="text-sm text-slate-500 dark:text-slate-400 mb-4">${escape(message)}</div><button onclick="location.reload()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold">נסה שוב</button></div>`;
         container.innerHTML = cell ? `<tr><td colspan="5">${body}</td></tr>` : body;
     }
 
-    // Override the original login handler. The old handler assumed every server
-    // response was valid JSON and converted 500/HTML responses into the generic
-    // "בעיית תקשורת" message, hiding the real failure.
     window.performLogin = async function () {
         const input = document.getElementById('login-password');
         const btn = document.getElementById('login-btn');
         const password = input ? input.value : '';
-        if (!password) {
-            Swal.fire('שגיאה', 'הזן סיסמה.', 'warning');
-            return;
-        }
-
+        if (!password) { Swal.fire('שגיאה', 'הזן סיסמה.', 'warning'); return; }
         const originalHtml = btn ? btn.innerHTML : '';
         try {
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> מתחבר...';
-            }
-
-            const res = await fetchJson('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify({ password, phone: password, pin: password })
-            });
-
-            if (!res || !res.success) {
-                throw new Error(res?.error || 'פרטי התחברות שגויים');
-            }
-
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> מתחבר...'; }
+            const res = await fetchJson('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ password, phone: password, pin: password }) });
+            if (!res || !res.success) throw new Error(res?.error || 'פרטי התחברות שגויים');
             document.getElementById('login-screen')?.classList.add('hidden');
-            const main = document.getElementById('main-app');
-            main?.classList.remove('hidden');
-            main?.classList.add('flex');
-
+            const main = document.getElementById('main-app'); main?.classList.remove('hidden'); main?.classList.add('flex');
             if (typeof startPolling === 'function') startPolling();
             if (typeof switchTab === 'function') switchTab('dashboard');
             if (typeof loadDomains === 'function') loadDomains();
@@ -95,17 +67,9 @@
             if (typeof loadTimeCorrections === 'function') loadTimeCorrections();
         } catch (error) {
             console.error('[admin-fixes] login failed:', error);
-            Swal.fire({
-                icon: 'error',
-                title: 'ההתחברות נכשלה',
-                html: `<div class="text-right text-sm">${escape(error.message || 'שגיאה לא ידועה')}<br><br><span class="text-slate-500">אם זו שגיאת שרת, יש לבדוק את לוגי Render.</span></div>`,
-                confirmButtonText: 'הבנתי'
-            });
+            Swal.fire({ icon: 'error', title: 'ההתחברות נכשלה', html: `<div class="text-right text-sm">${escape(error.message || 'שגיאה לא ידועה')}<br><br><span class="text-slate-500">אם זו שגיאת שרת, יש לבדוק את לוגי Render.</span></div>`, confirmButtonText: 'הבנתי' });
         } finally {
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = originalHtml;
-            }
+            if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
         }
     };
 
@@ -118,7 +82,6 @@
 
         if (typeof currentEmpId !== 'undefined') currentEmpId = empId;
         if (typeof currentEmpName !== 'undefined') currentEmpName = name || '';
-
         if (nameEl) nameEl.textContent = name || 'עובד';
         if (details) details.classList.remove('hidden');
 
@@ -127,6 +90,9 @@
             if (typeof activeHoursDomainFilter !== 'undefined') activeHoursDomainFilter = null;
             if (typeof pendingCopySegments !== 'undefined') pendingCopySegments = {};
 
+            // The employee hours request is the critical request. Render the report
+            // as soon as it succeeds; the Hebrew calendar is optional decoration and
+            // must never block the hours report.
             const data = await fetchJson(`/api/shifts/${encodeURIComponent(empId)}?month=${encodeURIComponent(monthVal)}`);
             if (!Array.isArray(data)) throw new Error('מבנה נתונים לא תקין מהשרת.');
 
@@ -135,13 +101,24 @@
                 data.forEach(row => { currentShiftsMap[row.date] = row; });
             }
 
-            if (typeof loadHebrewCalendarForMonth === 'function') await loadHebrewCalendarForMonth(monthVal);
             if (typeof renderHoursView !== 'function') throw new Error('רכיב תצוגת השעות לא נטען.');
             renderHoursView();
 
             const emp = (typeof empDataMap !== 'undefined') ? empDataMap[empId] : null;
             const pin = document.getElementById('meta-pin');
             if (pin) pin.textContent = emp?.pin_code || '';
+
+            // Calendar is loaded in the background with its own short timeout.
+            if (typeof loadHebrewCalendarForMonth === 'function') {
+                fetchJson(`/api/hebrew_calendar?month=${encodeURIComponent(monthVal)}`, {}, 5000)
+                    .then(calendar => {
+                        if (calendar && typeof calendar.days === 'object' && typeof currentHebrewCalendar !== 'undefined') {
+                            currentHebrewCalendar = calendar.days || {};
+                            if (typeof renderHoursView === 'function') renderHoursView();
+                        }
+                    })
+                    .catch(error => console.warn('[admin-fixes] Hebrew calendar skipped:', error.message));
+            }
         } catch (error) {
             if (daysContainer) showLoadError(daysContainer, error.message || 'שגיאה לא ידועה');
             if (tableWrap) tableWrap.classList.add('hidden');
@@ -164,9 +141,7 @@
     window.renderPinsTable = async function () {
         const tbody = document.getElementById('pins-table-tbody');
         if (!tbody) return;
-
         tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-slate-400"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2 block"></i>טוען עובדים...</td></tr>';
-
         try {
             let employees = (typeof allEmployees !== 'undefined' && Array.isArray(allEmployees)) ? allEmployees : [];
             if (!employees.length) {
@@ -174,22 +149,8 @@
                 employees = Array.isArray(data) ? data : [];
                 if (typeof allEmployees !== 'undefined') allEmployees = employees;
             }
-
-            if (!employees.length) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-400">אין עובדים במערכת.</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = employees.map(emp => `
-                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/40">
-                    <td class="p-3 font-bold" data-label="שם העובד">${escape(emp.name || '')}${emp.is_active === false ? ' <span class="text-xs text-slate-400">(לא פעיל)</span>' : ''}</td>
-                    <td class="p-3" data-label="מחלקה">${escape(emp.department || '-')}</td>
-                    <td class="p-3" data-label="תפקיד">${escape(emp.role || '-')}</td>
-                    <td class="p-3 font-mono" data-label="טלפון">${escape(emp.phone || '-')}</td>
-                    <td class="p-3 font-mono font-black text-emerald-600 text-base" data-label="PIN">${escape(emp.pin_code || '-')}</td>
-                </tr>`).join('');
-        } catch (error) {
-            showLoadError(tbody, error.message || 'לא ניתן לטעון את העובדים');
-        }
+            if (!employees.length) { tbody.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-400">אין עובדים במערכת.</td></tr>'; return; }
+            tbody.innerHTML = employees.map(emp => `<tr class="hover:bg-slate-50 dark:hover:bg-slate-700/40"><td class="p-3 font-bold" data-label="שם העובד">${escape(emp.name || '')}${emp.is_active === false ? ' <span class="text-xs text-slate-400">(לא פעיל)</span>' : ''}</td><td class="p-3" data-label="מחלקה">${escape(emp.department || '-')}</td><td class="p-3" data-label="תפקיד">${escape(emp.role || '-')}</td><td class="p-3 font-mono" data-label="טלפון">${escape(emp.phone || '-')}</td><td class="p-3 font-mono font-black text-emerald-600 text-base" data-label="PIN">${escape(emp.pin_code || '-')}</td></tr>`).join('');
+        } catch (error) { showLoadError(tbody, error.message || 'לא ניתן לטעון את העובדים'); }
     };
 })();
