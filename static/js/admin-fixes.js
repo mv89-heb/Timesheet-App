@@ -19,12 +19,16 @@
                 ...options,
                 signal: controller.signal
             });
+            const raw = await response.text();
             let payload = null;
-            try { payload = await response.json(); } catch (_) {}
+            try { payload = raw ? JSON.parse(raw) : null; } catch (_) {}
             if (!response.ok) {
-                const message = payload && (payload.error || payload.message) || `HTTP ${response.status}`;
+                const message = payload && (payload.error || payload.message)
+                    || (raw && raw.length < 500 ? raw : '')
+                    || `HTTP ${response.status}`;
                 throw new Error(message);
             }
+            if (payload === null && raw) throw new Error('השרת החזיר תשובה שאינה JSON.');
             return payload;
         } catch (error) {
             if (error && error.name === 'AbortError') {
@@ -49,6 +53,62 @@
         container.innerHTML = cell ? `<tr><td colspan="5">${body}</td></tr>` : body;
     }
 
+    // Override the original login handler. The old handler assumed every server
+    // response was valid JSON and converted 500/HTML responses into the generic
+    // "בעיית תקשורת" message, hiding the real failure.
+    window.performLogin = async function () {
+        const input = document.getElementById('login-password');
+        const btn = document.getElementById('login-btn');
+        const password = input ? input.value : '';
+        if (!password) {
+            Swal.fire('שגיאה', 'הזן סיסמה.', 'warning');
+            return;
+        }
+
+        const originalHtml = btn ? btn.innerHTML : '';
+        try {
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> מתחבר...';
+            }
+
+            const res = await fetchJson('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ password, phone: password, pin: password })
+            });
+
+            if (!res || !res.success) {
+                throw new Error(res?.error || 'פרטי התחברות שגויים');
+            }
+
+            document.getElementById('login-screen')?.classList.add('hidden');
+            const main = document.getElementById('main-app');
+            main?.classList.remove('hidden');
+            main?.classList.add('flex');
+
+            if (typeof startPolling === 'function') startPolling();
+            if (typeof switchTab === 'function') switchTab('dashboard');
+            if (typeof loadDomains === 'function') loadDomains();
+            if (typeof loadEmployees === 'function') loadEmployees();
+            if (typeof refreshRequestsBadge === 'function') refreshRequestsBadge();
+            if (typeof loadTimeCorrections === 'function') loadTimeCorrections();
+        } catch (error) {
+            console.error('[admin-fixes] login failed:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'ההתחברות נכשלה',
+                html: `<div class="text-right text-sm">${escape(error.message || 'שגיאה לא ידועה')}<br><br><span class="text-slate-500">אם זו שגיאת שרת, יש לבדוק את לוגי Render.</span></div>`,
+                confirmButtonText: 'הבנתי'
+            });
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        }
+    };
+
     async function loadHours(empId, name) {
         const nameEl = document.getElementById('current-emp-name');
         const details = document.getElementById('emp-details-bar');
@@ -56,8 +116,6 @@
         const daysContainer = document.getElementById('month-grid-days');
         const tableWrap = document.getElementById('month-grid-table-wrap');
 
-        // These are top-level lexical variables created by admin.js, so they
-        // must be assigned directly rather than through window.*.
         if (typeof currentEmpId !== 'undefined') currentEmpId = empId;
         if (typeof currentEmpName !== 'undefined') currentEmpName = name || '';
 
@@ -110,7 +168,6 @@
         tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-slate-400"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2 block"></i>טוען עובדים...</td></tr>';
 
         try {
-            // allEmployees is a top-level lexical variable in admin.js.
             let employees = (typeof allEmployees !== 'undefined' && Array.isArray(allEmployees)) ? allEmployees : [];
             if (!employees.length) {
                 const data = await fetchJson('/api/employees');
