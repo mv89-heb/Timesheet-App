@@ -23,12 +23,13 @@ def add_header(response):
             html = response.get_data(as_text=True)
             markers = (
                 '<script src="/static/js/admin-fixes.js"></script>\n'
-                '<script src="/static/js/admin-latest.js"></script>'
+                '<script src="/static/js/admin-latest.js"></script>\n'
+                '<script src="/static/js/admin-input-fix.js"></script>'
             )
             if 'admin-fixes.js' not in html and '</body>' in html:
                 html = html.replace('</body>', f'{markers}\n</body>')
-            elif 'admin-fixes.js' in html and 'admin-latest.js' not in html and '</body>' in html:
-                html = html.replace('</body>', '<script src="/static/js/admin-latest.js"></script>\n</body>')
+            elif 'admin-input-fix.js' not in html and '</body>' in html:
+                html = html.replace('</body>', '<script src="/static/js/admin-input-fix.js"></script>\n</body>')
             response.set_data(html)
         except Exception as e:
             print(f'[after_request] admin fixes injection failed: {e}')
