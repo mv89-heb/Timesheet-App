@@ -14,30 +14,20 @@
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
         try {
-            const response = await fetch(url, {
-                cache: 'no-store',
-                ...options,
-                signal: controller.signal
-            });
+            const response = await fetch(url, { cache: 'no-store', ...options, signal: controller.signal });
             const raw = await response.text();
             let payload = null;
             try { payload = raw ? JSON.parse(raw) : null; } catch (_) {}
             if (!response.ok) {
-                const message = payload && (payload.error || payload.message)
-                    || (raw && raw.length < 500 ? raw : '')
-                    || `HTTP ${response.status}`;
+                const message = payload && (payload.error || payload.message) || (raw && raw.length < 500 ? raw : '') || `HTTP ${response.status}`;
                 throw new Error(message);
             }
             if (payload === null && raw) throw new Error('השרת החזיר תשובה שאינה JSON.');
             return payload;
         } catch (error) {
-            if (error && error.name === 'AbortError') {
-                throw new Error('השרת לא החזיר תשובה בזמן. ייתכן שהחיבור למסד הנתונים איטי או מנותק.');
-            }
+            if (error && error.name === 'AbortError') throw new Error('השרת לא החזיר תשובה בזמן.');
             throw error;
-        } finally {
-            clearTimeout(timer);
-        }
+        } finally { clearTimeout(timer); }
     }
 
     function showLoadError(container, message) {
@@ -48,8 +38,7 @@
     }
 
     window.performLogin = async function () {
-        const input = document.getElementById('login-password');
-        const btn = document.getElementById('login-btn');
+        const input = document.getElementById('login-password'), btn = document.getElementById('login-btn');
         const password = input ? input.value : '';
         if (!password) { Swal.fire('שגיאה', 'הזן סיסמה.', 'warning'); return; }
         const originalHtml = btn ? btn.innerHTML : '';
@@ -67,61 +56,90 @@
             if (typeof loadTimeCorrections === 'function') loadTimeCorrections();
         } catch (error) {
             console.error('[admin-fixes] login failed:', error);
-            Swal.fire({ icon: 'error', title: 'ההתחברות נכשלה', html: `<div class="text-right text-sm">${escape(error.message || 'שגיאה לא ידועה')}<br><br><span class="text-slate-500">אם זו שגיאת שרת, יש לבדוק את לוגי Render.</span></div>`, confirmButtonText: 'הבנתי' });
-        } finally {
-            if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
-        }
+            Swal.fire({ icon: 'error', title: 'ההתחברות נכשלה', html: `<div class="text-right text-sm">${escape(error.message || 'שגיאה לא ידועה')}</div>`, confirmButtonText: 'הבנתי' });
+        } finally { if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; } }
     };
+
+    function putRowsIntoMap(data, monthVal) {
+        if (!Array.isArray(data) || typeof currentShiftsMap === 'undefined') return;
+        Object.keys(currentShiftsMap).filter(d => !monthVal || d.startsWith(monthVal)).forEach(d => delete currentShiftsMap[d]);
+        data.forEach(row => { if (row && row.date) currentShiftsMap[row.date] = row; });
+    }
 
     async function loadHours(empId, name) {
         const nameEl = document.getElementById('current-emp-name');
         const details = document.getElementById('emp-details-bar');
-        const monthVal = document.getElementById('month-picker')?.value || '';
+        const picker = document.getElementById('month-picker');
         const daysContainer = document.getElementById('month-grid-days');
         const tableWrap = document.getElementById('month-grid-table-wrap');
 
-        if (typeof currentEmpId !== 'undefined') currentEmpId = empId;
-        if (typeof currentEmpName !== 'undefined') currentEmpName = name || '';
+        currentEmpId = empId;
+        currentEmpName = name || '';
         if (nameEl) nameEl.textContent = name || 'עובד';
         if (details) details.classList.remove('hidden');
+        activeHoursDomainFilter = null;
+        pendingCopySegments = {};
 
         try {
             if (typeof renderHoursSkeleton === 'function') renderHoursSkeleton();
-            if (typeof activeHoursDomainFilter !== 'undefined') activeHoursDomainFilter = null;
-            if (typeof pendingCopySegments !== 'undefined') pendingCopySegments = {};
 
-            // The employee hours request is the critical request. Render the report
-            // as soon as it succeeds; the Hebrew calendar is optional decoration and
-            // must never block the hours report.
-            const data = await fetchJson(`/api/shifts/${encodeURIComponent(empId)}?month=${encodeURIComponent(monthVal)}`);
-            if (!Array.isArray(data)) throw new Error('מבנה נתונים לא תקין מהשרת.');
-
-            if (typeof currentShiftsMap !== 'undefined') {
-                Object.keys(currentShiftsMap).filter(d => d.startsWith(monthVal)).forEach(d => delete currentShiftsMap[d]);
-                data.forEach(row => { currentShiftsMap[row.date] = row; });
+            // Cards are the default report view. The manager should not have to
+            // click a month/table toggle after selecting an employee.
+            currentHoursView = 'day';
+            if (typeof switchHoursView === 'function') {
+                document.getElementById('hours-view-day-btn')?.classList.add('bg-blue-600', 'text-white');
+                document.getElementById('hours-view-month-btn')?.classList.remove('bg-blue-600', 'text-white');
+                tableWrap?.classList.add('hidden');
+                daysContainer?.classList.remove('hidden');
             }
 
+            let monthVal = picker?.value || '';
+            if (!monthVal) {
+                const now = new Date();
+                monthVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                if (picker) picker.value = monthVal;
+            }
+
+            // First load the selected/current month. If it contains no reports,
+            // automatically fall back to the latest month in which this employee
+            // actually reported hours.
+            let data = await fetchJson(`/api/shifts/${encodeURIComponent(empId)}?month=${encodeURIComponent(monthVal)}`);
+            if (!Array.isArray(data)) throw new Error('מבנה נתונים לא תקין מהשרת.');
+
+            if (!data.length) {
+                const allData = await fetchJson(`/api/shifts/${encodeURIComponent(empId)}`);
+                if (Array.isArray(allData) && allData.length) {
+                    const latestDate = allData.reduce((latest, row) => row?.date && row.date > latest ? row.date : latest, '');
+                    const latestMonth = latestDate ? latestDate.slice(0, 7) : '';
+                    if (latestMonth && picker) picker.value = latestMonth;
+                    monthVal = latestMonth || monthVal;
+                    data = latestMonth ? allData.filter(row => row?.date?.startsWith(latestMonth)) : allData;
+                }
+            }
+
+            putRowsIntoMap(data, monthVal);
+
             if (typeof renderHoursView !== 'function') throw new Error('רכיב תצוגת השעות לא נטען.');
+            // Render immediately. Calendar data is optional and cannot block the report.
             renderHoursView();
 
             const emp = (typeof empDataMap !== 'undefined') ? empDataMap[empId] : null;
             const pin = document.getElementById('meta-pin');
             if (pin) pin.textContent = emp?.pin_code || '';
 
-            // Calendar is loaded in the background with its own short timeout.
-            if (typeof loadHebrewCalendarForMonth === 'function') {
+            if (typeof loadHebrewCalendarForMonth === 'function' && monthVal) {
                 fetchJson(`/api/hebrew_calendar?month=${encodeURIComponent(monthVal)}`, {}, 5000)
                     .then(calendar => {
-                        if (calendar && typeof calendar.days === 'object' && typeof currentHebrewCalendar !== 'undefined') {
+                        if (calendar && typeof calendar.days === 'object') {
                             currentHebrewCalendar = calendar.days || {};
-                            if (typeof renderHoursView === 'function') renderHoursView();
+                            renderHoursView();
                         }
                     })
                     .catch(error => console.warn('[admin-fixes] Hebrew calendar skipped:', error.message));
             }
         } catch (error) {
-            if (daysContainer) showLoadError(daysContainer, error.message || 'שגיאה לא ידועה');
-            if (tableWrap) tableWrap.classList.add('hidden');
+            showLoadError(daysContainer, error.message || 'שגיאה לא ידועה');
+            tableWrap?.classList.add('hidden');
             console.error('[admin-fixes] hours load failed', error);
         }
     }
@@ -131,10 +149,7 @@
     window.fetchMonthShifts = async function (empId, monthVal) {
         const data = await fetchJson(`/api/shifts/${encodeURIComponent(empId)}?month=${encodeURIComponent(monthVal)}`);
         if (!Array.isArray(data)) throw new Error('מבנה נתונים לא תקין מהשרת.');
-        if (typeof currentShiftsMap !== 'undefined') {
-            Object.keys(currentShiftsMap).filter(d => d.startsWith(monthVal)).forEach(d => delete currentShiftsMap[d]);
-            data.forEach(row => { currentShiftsMap[row.date] = row; });
-        }
+        putRowsIntoMap(data, monthVal);
         return data;
     };
 
@@ -150,7 +165,7 @@
                 if (typeof allEmployees !== 'undefined') allEmployees = employees;
             }
             if (!employees.length) { tbody.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-400">אין עובדים במערכת.</td></tr>'; return; }
-            tbody.innerHTML = employees.map(emp => `<tr class="hover:bg-slate-50 dark:hover:bg-slate-700/40"><td class="p-3 font-bold" data-label="שם העובד">${escape(emp.name || '')}${emp.is_active === false ? ' <span class="text-xs text-slate-400">(לא פעיל)</span>' : ''}</td><td class="p-3" data-label="מחלקה">${escape(emp.department || '-')}</td><td class="p-3" data-label="תפקיד">${escape(emp.role || '-')}</td><td class="p-3 font-mono" data-label="טלפון">${escape(emp.phone || '-')}</td><td class="p-3 font-mono font-black text-emerald-600 text-base" data-label="PIN">${escape(emp.pin_code || '-')}</td></tr>`).join('');
+            tbody.innerHTML = employees.map(emp => `<tr class="hover:bg-slate-50 dark:hover:bg-slate-700/40"><td class="p-3 font-bold">${escape(emp.name || '')}${emp.is_active === false ? ' <span class="text-xs text-slate-400">(לא פעיל)</span>' : ''}</td><td class="p-3">${escape(emp.department || '-')}</td><td class="p-3">${escape(emp.role || '-')}</td><td class="p-3 font-mono">${escape(emp.phone || '-')}</td><td class="p-3 font-mono font-black text-emerald-600 text-base">${escape(emp.pin_code || '-')}</td></tr>`).join('');
         } catch (error) { showLoadError(tbody, error.message || 'לא ניתן לטעון את העובדים'); }
     };
 })();
