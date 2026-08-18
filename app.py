@@ -7,9 +7,9 @@ from routes.employees import employees_bp
 from routes.shifts import shifts_bp
 from routes.schedule import schedule_bp
 from routes.settings import settings_bp
+from routes.latest import latest_bp
 
 app = Flask(__name__)
-# תיקון אבטחה: שימוש במשתנה סביבה או יצירת מפתח רנדומלי אמיתי כדי למנוע זיוף עוגיות מנהל
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 
 @app.after_request
@@ -18,9 +18,6 @@ def add_header(response):
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
 
-    # admin.js currently contains the main UI. Load the repair layer after it
-    # without requiring a large template rewrite. This keeps the fix isolated
-    # and allows the repair layer to override broken/missing client functions.
     if response.content_type and response.content_type.startswith('text/html'):
         try:
             html = response.get_data(as_text=True)
@@ -30,7 +27,6 @@ def add_header(response):
                 response.set_data(html)
         except Exception as e:
             print(f'[after_request] admin fixes injection failed: {e}')
-
     return response
 
 app.register_blueprint(auth_bp)
@@ -38,6 +34,7 @@ app.register_blueprint(employees_bp)
 app.register_blueprint(shifts_bp)
 app.register_blueprint(schedule_bp)
 app.register_blueprint(settings_bp)
+app.register_blueprint(latest_bp)
 
 @app.route('/')
 def admin_panel():
