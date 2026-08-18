@@ -21,10 +21,15 @@ def add_header(response):
     if response.content_type and response.content_type.startswith('text/html'):
         try:
             html = response.get_data(as_text=True)
-            marker = '<script src="/static/js/admin-fixes.js"></script>'
+            markers = (
+                '<script src="/static/js/admin-fixes.js"></script>\n'
+                '<script src="/static/js/admin-latest.js"></script>'
+            )
             if 'admin-fixes.js' not in html and '</body>' in html:
-                html = html.replace('</body>', f'{marker}\n</body>')
-                response.set_data(html)
+                html = html.replace('</body>', f'{markers}\n</body>')
+            elif 'admin-fixes.js' in html and 'admin-latest.js' not in html and '</body>' in html:
+                html = html.replace('</body>', '<script src="/static/js/admin-latest.js"></script>\n</body>')
+            response.set_data(html)
         except Exception as e:
             print(f'[after_request] admin fixes injection failed: {e}')
     return response
