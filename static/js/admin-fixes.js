@@ -37,6 +37,30 @@
         container.innerHTML = cell ? `<tr><td colspan="5">${body}</td></tr>` : body;
     }
 
+    function forceCardsView() {
+        currentHoursView = 'day';
+        const dayBtn = document.getElementById('hours-view-day-btn');
+        const monthBtn = document.getElementById('hours-view-month-btn');
+        const days = document.getElementById('month-grid-days');
+        const table = document.getElementById('month-grid-table-wrap');
+        dayBtn?.classList.add('bg-blue-600', 'text-white');
+        monthBtn?.classList.remove('bg-blue-600', 'text-white');
+        days?.classList.remove('hidden');
+        table?.classList.add('hidden');
+    }
+
+    async function renderCardsImmediately() {
+        forceCardsView();
+        if (typeof renderHoursView === 'function') renderHoursView();
+        forceCardsView();
+        // The legacy renderer can change the view while finishing its own render.
+        // Re-assert the requested default view on the next paint as well.
+        requestAnimationFrame(() => {
+            forceCardsView();
+            requestAnimationFrame(forceCardsView);
+        });
+    }
+
     window.performLogin = async function () {
         const input = document.getElementById('login-password'), btn = document.getElementById('login-btn');
         const password = input ? input.value : '';
@@ -66,6 +90,13 @@
         data.forEach(row => { if (row && row.date) currentShiftsMap[row.date] = row; });
     }
 
+    function latestMonthFromRows(rows) {
+        if (!Array.isArray(rows) || !rows.length) return '';
+        let latest = '';
+        rows.forEach(row => { if (row?.date && row.date > latest) latest = row.date; });
+        return latest.slice(0, 7);
+    }
+
     async function loadHours(empId, name) {
         const nameEl = document.getElementById('current-emp-name');
         const details = document.getElementById('emp-details-bar');
@@ -82,57 +113,42 @@
 
         try {
             if (typeof renderHoursSkeleton === 'function') renderHoursSkeleton();
+            forceCardsView();
 
-            // Cards are the default report view. The manager should not have to
-            // click a month/table toggle after selecting an employee.
-            currentHoursView = 'day';
-            if (typeof switchHoursView === 'function') {
-                document.getElementById('hours-view-day-btn')?.classList.add('bg-blue-600', 'text-white');
-                document.getElementById('hours-view-month-btn')?.classList.remove('bg-blue-600', 'text-white');
-                tableWrap?.classList.add('hidden');
-                daysContainer?.classList.remove('hidden');
-            }
+            // Do not require the manager to choose a month. Always find the most
+            // recent month containing an actual report and open that month directly.
+            const allData = await fetchJson(`/api/shifts/${encodeURIComponent(empId)}`);
+            if (!Array.isArray(allData)) throw new Error('מבנה נתונים לא תקין מהשרת.');
 
-            let monthVal = picker?.value || '';
+            const latestMonth = latestMonthFromRows(allData);
+            let monthVal = latestMonth;
             if (!monthVal) {
-                const now = new Date();
-                monthVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-                if (picker) picker.value = monthVal;
-            }
-
-            // First load the selected/current month. If it contains no reports,
-            // automatically fall back to the latest month in which this employee
-            // actually reported hours.
-            let data = await fetchJson(`/api/shifts/${encodeURIComponent(empId)}?month=${encodeURIComponent(monthVal)}`);
-            if (!Array.isArray(data)) throw new Error('מבנה נתונים לא תקין מהשרת.');
-
-            if (!data.length) {
-                const allData = await fetchJson(`/api/shifts/${encodeURIComponent(empId)}`);
-                if (Array.isArray(allData) && allData.length) {
-                    const latestDate = allData.reduce((latest, row) => row?.date && row.date > latest ? row.date : latest, '');
-                    const latestMonth = latestDate ? latestDate.slice(0, 7) : '';
-                    if (latestMonth && picker) picker.value = latestMonth;
-                    monthVal = latestMonth || monthVal;
-                    data = latestMonth ? allData.filter(row => row?.date?.startsWith(latestMonth)) : allData;
+                monthVal = picker?.value || '';
+                if (!monthVal) {
+                    const now = new Date();
+                    monthVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
                 }
             }
+            if (picker) picker.value = monthVal;
 
+            const data = latestMonth ? allData.filter(row => row?.date?.startsWith(monthVal)) : allData;
             putRowsIntoMap(data, monthVal);
 
-            if (typeof renderHoursView !== 'function') throw new Error('רכיב תצוגת השעות לא נטען.');
-            // Render immediately. Calendar data is optional and cannot block the report.
-            renderHoursView();
+            await renderCardsImmediately();
 
             const emp = (typeof empDataMap !== 'undefined') ? empDataMap[empId] : null;
             const pin = document.getElementById('meta-pin');
             if (pin) pin.textContent = emp?.pin_code || '';
 
+            // Hebrew calendar is optional and can update decorations later.
             if (typeof loadHebrewCalendarForMonth === 'function' && monthVal) {
                 fetchJson(`/api/hebrew_calendar?month=${encodeURIComponent(monthVal)}`, {}, 5000)
                     .then(calendar => {
                         if (calendar && typeof calendar.days === 'object') {
                             currentHebrewCalendar = calendar.days || {};
                             renderHoursView();
+                            forceCardsView();
+                            requestAnimationFrame(forceCardsView);
                         }
                     })
                     .catch(error => console.warn('[admin-fixes] Hebrew calendar skipped:', error.message));
