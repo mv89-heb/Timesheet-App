@@ -17,6 +17,20 @@ def add_header(response):
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
+
+    # admin.js currently contains the main UI. Load the repair layer after it
+    # without requiring a large template rewrite. This keeps the fix isolated
+    # and allows the repair layer to override broken/missing client functions.
+    if response.content_type and response.content_type.startswith('text/html'):
+        try:
+            html = response.get_data(as_text=True)
+            marker = "<script src=\"{{ url_for('static', filename='js/admin-fixes.js') }}\"></script>"
+            if 'admin-fixes.js' not in html and '</body>' in html:
+                html = html.replace('</body>', f'{marker}\n</body>')
+                response.set_data(html)
+        except Exception as e:
+            print(f'[after_request] admin fixes injection failed: {e}')
+
     return response
 
 app.register_blueprint(auth_bp)
@@ -26,11 +40,11 @@ app.register_blueprint(schedule_bp)
 app.register_blueprint(settings_bp)
 
 @app.route('/')
-def admin_panel(): 
+def admin_panel():
     return render_template('index.html')
 
 @app.route('/kiosk')
-def kiosk_mode(): 
+def kiosk_mode():
     return render_template('kiosk.html')
 
 if os.environ.get('DATABASE_URL'):
@@ -38,7 +52,7 @@ if os.environ.get('DATABASE_URL'):
         init_db()
         migrate_legacy_shifts()
     except Exception as e:
-        print(f"[startup] אתחול מסד הנתונים נכשל: {e}")
+        print(f'[startup] אתחול מסד הנתונים נכשל: {e}')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
