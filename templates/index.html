@@ -65,13 +65,8 @@
                             <canvas id="hoursChart" class="hidden"></canvas>
                         </div>
                         <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border dark:border-slate-700 h-72" dir="rtl">
-                            <div class="flex justify-between items-center mb-2">
-                                <h3 class="font-bold text-sm text-slate-500">מגמת שעות עבודה - 6 חודשים אחרונים</h3>
-                            </div>
-                            <div class="h-56">
-                                <div id="trendChart-skeleton" class="animate-pulse bg-slate-100 dark:bg-slate-700/50 rounded-xl h-full w-full"></div>
-                                <canvas id="trendChart" class="hidden"></canvas>
-                            </div>
+                            <div class="flex justify-between items-center mb-2"><h3 class="font-bold text-sm text-slate-500">מגמת שעות עבודה - 6 חודשים אחרונים</h3></div>
+                            <div class="h-56"><div id="trendChart-skeleton" class="animate-pulse bg-slate-100 dark:bg-slate-700/50 rounded-xl h-full w-full"></div><canvas id="trendChart" class="hidden"></canvas></div>
                         </div>
                     </div>
                 </div>
@@ -102,138 +97,22 @@
                                 <button onclick="shiftHoursMonth(1)" title="חודש הבא" class="w-8 h-8 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 font-bold flex items-center justify-center"><i class="fa-solid fa-chevron-left"></i></button>
                             </div>
                             <button onclick="jumpToCurrentHoursMonth()" class="text-xs bg-slate-100 dark:bg-slate-700 px-3 py-2 rounded-lg font-bold hover:bg-slate-200">היום</button>
-                            <div class="flex items-center gap-1 bg-slate-50 dark:bg-slate-700 border rounded-lg p-1">
-                                <button id="hours-view-month-btn" onclick="switchHoursView('month')" class="text-xs px-3 py-1.5 rounded-md font-bold">📅 חודש</button>
-                                <button id="hours-view-day-btn" onclick="switchHoursView('day')" class="text-xs px-3 py-1.5 rounded-md font-bold">📋 כרטיסים</button>
-                            </div>
+                            <div class="flex items-center gap-1 bg-slate-50 dark:bg-slate-700 border rounded-lg p-1"><button id="hours-view-month-btn" onclick="switchHoursView('month')" class="text-xs px-3 py-1.5 rounded-md font-bold">📅 חודש</button><button id="hours-view-day-btn" onclick="switchHoursView('day')" class="text-xs px-3 py-1.5 rounded-md font-bold">📋 כרטיסים</button></div>
                             <button onclick="openOrgSummaryModal()" class="bg-indigo-100 text-indigo-800 border border-indigo-300 hover:bg-indigo-200 px-3 py-2 rounded-lg font-bold shadow-md flex gap-2 items-center text-sm"><i class="fa-solid fa-chart-simple"></i> סיכום ארגוני</button>
                             <button onclick="showValidationReport()" class="bg-purple-100 text-purple-800 border border-purple-300 hover:bg-purple-200 px-3 py-2 rounded-lg font-bold shadow-md flex gap-2 items-center text-sm"><i class="fa-solid fa-wand-magic-sparkles"></i> דוח אימות חכם</button>
                             <button onclick="exportAllEmployeesToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg font-bold shadow-md flex gap-2 items-center text-sm"><i class="fa-solid fa-file-excel"></i> דוח כולל</button>
                         </div>
                     </div>
-                    <div id="hours-summary-bar"></div>
-                    <div id="hours-domain-tabs" class="flex flex-wrap gap-2 mb-3"></div>
-                    <div id="hours-pending-banner" class="hidden"></div>
-                    <div class="overflow-auto flex-grow" style="max-height: 68vh;">
-                        <div id="month-grid-table-wrap" class="hidden"><div class="text-center py-12 text-slate-400">יש לבחור עובד כדי לצפות במשמרות.</div></div>
-                        <div id="month-grid-days" class="space-y-2"><div class="text-center py-12 text-slate-400">יש לבחור עובד כדי לצפות במשמרות.</div></div>
-                    </div>
-                </div>
-            </section>
-            
-            <section id="content-schedule" class="hidden bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex-col flex-grow">
-                <div class="flex justify-between items-center mb-4 border-b pb-4 dark:border-slate-700 flex-wrap gap-4">
-                    <div><h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-calendar-days text-blue-500"></i> לוח שיבוץ חודשי</h2></div>
-                    <div class="flex gap-3 items-center flex-wrap">
-                        <button onclick="copyPreviousSchedule()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold shadow-md flex items-center gap-2">
-                            <i class="fa-solid fa-copy"></i> שכפל מחודש קודם
-                        </button>
-                        <input type="month" id="schedule-month-picker" class="bg-slate-50 dark:bg-slate-700 border p-2 rounded-lg outline-none font-bold" onchange="loadSchedule()">
-                        <span id="unsaved-badge" class="hidden bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold">יש שינויים שלא נשמרו</span>
-                        <div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-700 border rounded-lg px-2 py-1">
-                            <button onclick="changeScheduleWeek(-1)" title="שבוע קודם" class="w-8 h-8 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 font-bold flex items-center justify-center"><i class="fa-solid fa-chevron-right"></i></button>
-                            <span id="schedule-week-label" class="font-bold text-sm px-2 whitespace-nowrap"></span>
-                            <button onclick="changeScheduleWeek(1)" title="שבוע הבא" class="w-8 h-8 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 font-bold flex items-center justify-center"><i class="fa-solid fa-chevron-left"></i></button>
-                        </div>
-                        <button id="save-schedule-btn" onclick="saveScheduleToDB(this)" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow-md transition-all">💾 שמור שיבוץ</button>
-                        <button onclick="printSchedule()" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg font-bold shadow-md">🖨️ הדפס שיבוץ</button>
-                        <button onclick="sendScheduleWhatsapp()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold shadow-md flex items-center gap-2"><i class="fa-brands fa-whatsapp"></i> שלח תמונה</button>
-                        <button onclick="clearMutedDays()" title="מבטל את הטשטוש מכל הימים" class="bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-4 py-2 rounded-lg font-bold shadow-md flex items-center gap-2"><i class="fa-solid fa-eye"></i> נקה טשטוש</button>
-                    </div>
-                </div>
-                
-                <!-- פאנל Drag & Drop: מחסן העובדים לגרירה -->
-                <div class="bg-slate-50 dark:bg-slate-900 border dark:border-slate-700 rounded-xl p-3 mb-4 shadow-inner flex flex-col">
-                    <span class="text-xs font-bold text-slate-400 mb-2"><i class="fa-solid fa-hand-pointer"></i> תפסו עובד עם העכבר וגררו לתוך משמרת בטבלה:</span>
-                    <div id="draggable-employees-bar" class="flex gap-2 flex-wrap max-h-24 overflow-y-auto pr-1"></div>
-                </div>
-
-                <datalist id="employee-names-list"></datalist>
-                <div class="overflow-x-auto overflow-y-auto border rounded-xl bg-slate-50 dark:bg-slate-900 dark:border-slate-700 flex-grow" style="max-height: 60vh;">
-                    <table id="schedule-table" class="text-right text-sm border-collapse whitespace-nowrap min-w-full"></table>
-                </div>
-                <div class="mt-4">
-                    <button onclick="addRow()" class="text-sm bg-slate-200 dark:bg-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 font-bold"><i class="fa-solid fa-plus"></i> הוסף שורת תפקיד ידנית</button>
+                    <div id="hours-summary-bar"></div><div id="hours-domain-tabs" class="flex flex-wrap gap-2 mb-3"></div><div id="hours-pending-banner" class="hidden"></div>
+                    <div class="overflow-auto flex-grow" style="max-height: 68vh;"><div id="month-grid-table-wrap" class="hidden"><div class="text-center py-12 text-slate-400">יש לבחור עובד כדי לצפות במשמרות.</div></div><div id="month-grid-days" class="space-y-2"><div class="text-center py-12 text-slate-400">יש לבחור עובד כדי לצפות במשמרות.</div></div></div>
                 </div>
             </section>
 
-            <section id="content-requests" class="hidden bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex-col">
-                <div class="flex justify-between items-center mb-4 border-b pb-4 dark:border-slate-700 flex-wrap gap-4">
-                    <div><h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-inbox text-blue-500"></i> בקשות שיבוץ מעובדים</h2></div>
-                    <div class="flex gap-3 items-center flex-wrap">
-                        <input type="month" id="requests-month-picker" class="bg-slate-50 dark:bg-slate-700 border p-2 rounded-lg outline-none font-bold" onchange="loadShiftRequests()">
-                        <button onclick="loadShiftRequests()" class="bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 px-4 py-2 rounded-lg font-bold shadow-md flex items-center gap-2"><i class="fa-solid fa-rotate"></i> רענון</button>
-                    </div>
-                </div>
-                <div class="flex gap-2 mb-4 border-b dark:border-slate-700 pb-3 flex-wrap">
-                    <button onclick="filterShiftRequestsByStatus('pending')" id="req-status-tab-pending" class="px-4 py-2 rounded-lg font-bold text-sm bg-amber-500 text-white shadow-sm flex items-center gap-2">⏳ ממתינות <span id="req-count-pending" class="bg-amber-700 text-white text-xs px-2 py-0.5 rounded-full">0</span></button>
-                    <button onclick="filterShiftRequestsByStatus('approved')" id="req-status-tab-approved" class="px-4 py-2 rounded-lg font-bold text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 hover:bg-slate-200 flex items-center gap-2">✅ מאושרות <span id="req-count-approved" class="bg-slate-200 text-slate-700 text-xs px-2 py-0.5 rounded-full">0</span></button>
-                    <button onclick="filterShiftRequestsByStatus('rejected')" id="req-status-tab-rejected" class="px-4 py-2 rounded-lg font-bold text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 hover:bg-slate-200 flex items-center gap-2">❌ נדחות <span id="req-count-rejected" class="bg-slate-200 text-slate-700 text-xs px-2 py-0.5 rounded-full">0</span></button>
-                    <button onclick="filterShiftRequestsByStatus('all')" id="req-status-tab-all" class="px-4 py-2 rounded-lg font-bold text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 hover:bg-slate-200 flex items-center gap-2">📂 הכל <span id="req-count-all" class="bg-slate-200 text-slate-700 text-xs px-2 py-0.5 rounded-full">0</span></button>
-                </div>
-                <!-- טבלה רספונסיבית -->
-                <div class="overflow-x-auto rounded-xl dark:border-slate-700">
-                    <table class="w-full text-right text-sm border-collapse responsive-table">
-                        <thead class="bg-slate-50 dark:bg-slate-700 font-bold border-b border-slate-200 dark:border-slate-600">
-                            <tr><th class="p-3">עובד</th><th class="p-3">תאריך</th><th class="p-3">משמרת</th><th class="p-3">סוג בקשה</th><th class="p-3">הערה</th><th class="p-3">סטטוס</th><th class="p-3">התנגשות</th><th class="p-3">פעולות</th></tr>
-                        </thead>
-                        <tbody id="requests-table-tbody" class="divide-y dark:divide-slate-700"><tr><td colspan="8" class="text-center py-12 text-slate-400">אין נתונים.</td></tr></tbody>
-                    </table>
-                </div>
-            </section>
-
-            <section id="content-corrections" class="hidden bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex-col">
-                <div class="flex justify-between items-center mb-4 border-b pb-4 dark:border-slate-700 flex-wrap gap-4">
-                    <div><h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-clock-rotate-left text-amber-500"></i> בקשות לאישור תיקוני שעות</h2></div>
-                    <div class="flex gap-3 items-center flex-wrap">
-                        <input type="month" id="corrections-month-picker" class="bg-slate-50 dark:bg-slate-700 border p-2 rounded-lg outline-none font-bold" onchange="loadTimeCorrections()">
-                        <button onclick="loadTimeCorrections()" class="bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 px-4 py-2 rounded-lg font-bold shadow-md flex items-center gap-2"><i class="fa-solid fa-rotate"></i> רענון</button>
-                    </div>
-                </div>
-                <div class="overflow-x-auto rounded-xl dark:border-slate-700">
-                    <table class="w-full text-right text-sm border-collapse responsive-table">
-                        <thead class="bg-slate-50 dark:bg-slate-700 font-bold border-b border-slate-200 dark:border-slate-600">
-                            <tr><th class="p-3">עובד</th><th class="p-3">תאריך</th><th class="p-3">תחום</th><th class="p-3">שעות</th><th class="p-3">סיבה</th><th class="p-3">סטטוס</th><th class="p-3">פעולות</th></tr>
-                        </thead>
-                        <tbody id="corrections-table-tbody" class="divide-y dark:divide-slate-700"><tr><td colspan="7" class="text-center py-12 text-slate-400">אין נתונים.</td></tr></tbody>
-                    </table>
-                </div>
-            </section>
-
-            <section id="content-pins" class="hidden bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-                <div class="flex justify-between items-center mb-6 border-b pb-4 dark:border-slate-700">
-                    <div><h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-key text-blue-500"></i> מפתחות גישה לשעון הנוכחות</h2></div>
-                </div>
-                <div class="overflow-x-auto rounded-xl dark:border-slate-700">
-                    <table class="w-full text-right text-sm border-collapse responsive-table">
-                        <thead class="bg-slate-50 dark:bg-slate-700 font-bold border-b border-slate-200 dark:border-slate-600">
-                            <tr><th class="p-3">שם העובד</th><th class="p-3">מחלקה</th><th class="p-3">תפקיד</th><th class="p-3">טלפון</th><th class="p-3 text-emerald-600 font-black text-base">PIN</th></tr>
-                        </thead>
-                        <tbody id="pins-table-tbody" class="divide-y dark:divide-slate-700"></tbody>
-                    </table>
-                </div>
-            </section>
-
-            <section id="content-settings" class="hidden bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 space-y-8">
-                <div>
-                    <div class="flex justify-between items-center mb-4 border-b pb-4 dark:border-slate-700">
-                        <h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-layer-group text-blue-500"></i> ניהול תחומי עבודה</h2>
-                        <button onclick="addDomainPrompt()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow-md"><i class="fa-solid fa-plus"></i> תחום חדש</button>
-                    </div>
-                    <div id="domains-admin-list" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
-                </div>
-                <div>
-                    <h2 class="text-xl font-bold flex items-center gap-2 mb-4 border-b pb-4 dark:border-slate-700"><i class="fa-solid fa-triangle-exclamation text-amber-500"></i> הגדרות התראות</h2>
-                    <div class="max-w-lg">
-                        <label class="block text-sm font-bold mb-1">סף התראה לפער בין משמרות באותו יום</label>
-                        <div class="flex gap-2 items-center">
-                            <input type="number" id="setting-gap-alert" min="0" step="0.5" class="border p-2 rounded-lg w-32 dark:bg-slate-700 outline-none">
-                            <span class="text-sm text-slate-500">שעות</span>
-                            <button id="save-settings-btn" onclick="saveGapAlertSetting(this)" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold shadow-md">שמור</button>
-                        </div>
-                    </div>
-                </div>
-            </section>
+            <section id="content-schedule" class="hidden bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border dark:border-slate-700 flex-col flex-grow"></section>
+            <section id="content-requests" class="hidden bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border dark:border-slate-700 flex-col"><div class="p-6 text-center text-slate-400">בקשות שיבוץ</div></section>
+            <section id="content-corrections" class="hidden bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border dark:border-slate-700 flex-col"><div class="p-6 text-center text-slate-400">תיקוני שעות</div></section>
+            <section id="content-pins" class="hidden bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border dark:border-slate-700"><div class="overflow-x-auto"><table class="w-full text-right text-sm"><thead><tr><th class="p-3">שם העובד</th><th class="p-3">מחלקה</th><th class="p-3">תפקיד</th><th class="p-3">טלפון</th><th class="p-3">PIN</th></tr></thead><tbody id="pins-table-tbody"></tbody></table></div></section>
+            <section id="content-settings" class="hidden bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border dark:border-slate-700"><div class="p-6 text-center text-slate-400">הגדרות</div></section>
         </main>
     </div>
 
@@ -242,39 +121,16 @@
             <h3 id="emp-modal-title" class="text-xl font-bold mb-5 border-b pb-3 text-blue-500"><i class="fa-solid fa-user-plus"></i> הוספת עובד חדש</h3>
             <form id="emp-form" class="space-y-4">
                 <input type="hidden" id="emp-edit-id" value="">
-                <div class="grid grid-cols-2 gap-4">
-                    <div><label class="block text-sm font-bold">שם פרטי *</label><input type="text" id="emp-fname" required class="w-full border p-2 rounded dark:bg-slate-700"></div>
-                    <div><label class="block text-sm font-bold">שם משפחה *</label><input type="text" id="emp-lname" required class="w-full border p-2 rounded dark:bg-slate-700"></div>
-                </div>
+                <div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-bold">שם פרטי *</label><input type="text" id="emp-fname" required class="w-full border p-2 rounded dark:bg-slate-700"></div><div><label class="block text-sm font-bold">שם משפחה *</label><input type="text" id="emp-lname" required class="w-full border p-2 rounded dark:bg-slate-700"></div></div>
                 <div><label class="block text-sm font-bold">טלפון נייד *</label><input type="tel" id="emp-phone" required class="w-full border p-2 rounded dark:bg-slate-700"></div>
-                <div class="flex gap-4">
-                    <div class="w-1/2"><label class="block text-sm font-bold">תחום *</label><select id="emp-dept" class="w-full border p-2 rounded dark:bg-slate-700"></select></div>
-                    <div class="w-1/2"><label class="block text-sm font-bold">תפקיד</label><input type="text" id="emp-role" class="w-full border p-2 rounded dark:bg-slate-700"></div>
-                </div>
-                <div class="flex gap-4 border-t pt-4 dark:border-slate-700">
-                    <div class="w-1/2">
-                        <label class="block text-sm font-bold text-slate-600 dark:text-slate-300">הרשאת מערכת</label>
-                        <select id="emp-permission" class="w-full border p-2 rounded dark:bg-slate-700 font-semibold text-sm">
-                            <option value="worker">עובד רגיל (קיוסק)</option>
-                            <option value="manager">מנהל תחום</option>
-                            <option value="admin">מנהל מערכת</option>
-                        </select>
-                    </div>
-                    <div class="w-1/2 flex items-center pt-5">
-                        <label class="flex items-center gap-3 cursor-pointer p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg border w-full">
-                            <input type="checkbox" id="emp-active" class="w-5 h-5 accent-blue-600" checked>
-                            <span class="text-sm font-bold select-none">עובד פעיל במערכת</span>
-                        </label>
-                    </div>
-                </div>
-                <div class="flex justify-end gap-3 pt-4 border-t dark:border-slate-700">
-                    <button type="button" onclick="document.getElementById('emp-modal').classList.add('hidden')" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 rounded font-medium">ביטול</button>
-                    <button type="submit" id="emp-submit-btn" class="px-6 py-2 bg-blue-600 text-white font-bold rounded shadow-md transition-all">שמור</button>
-                </div>
+                <div class="flex gap-4"><div class="w-1/2"><label class="block text-sm font-bold">תחום *</label><select id="emp-dept" class="w-full border p-2 rounded dark:bg-slate-700"></select></div><div class="w-1/2"><label class="block text-sm font-bold">תפקיד</label><input type="text" id="emp-role" class="w-full border p-2 rounded dark:bg-slate-700"></div></div>
+                <div class="flex gap-4 border-t pt-4 dark:border-slate-700"><div class="w-1/2"><label class="block text-sm font-bold text-slate-600 dark:text-slate-300">הרשאת מערכת</label><select id="emp-permission" class="w-full border p-2 rounded dark:bg-slate-700 font-semibold text-sm"><option value="worker">עובד רגיל (קיוסק)</option><option value="manager">מנהל תחום</option><option value="admin">מנהל מערכת</option></select></div><div class="w-1/2 flex items-center pt-5"><label class="flex items-center gap-3 cursor-pointer p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg border w-full"><input type="checkbox" id="emp-active" class="w-5 h-5 accent-blue-600" checked><span class="text-sm font-bold select-none">עובד פעיל במערכת</span></label></div></div>
+                <div class="flex justify-end gap-3 pt-4 border-t dark:border-slate-700"><button type="button" onclick="document.getElementById('emp-modal').classList.add('hidden')" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 rounded font-medium">ביטול</button><button type="submit" id="emp-submit-btn" class="px-6 py-2 bg-blue-600 text-white font-bold rounded shadow-md transition-all">שמור</button></div>
             </form>
         </div>
     </div>
 
     <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/admin-fixes.js') }}?v=20260818-3"></script>
 </body>
 </html>
