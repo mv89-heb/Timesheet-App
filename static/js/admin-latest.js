@@ -6,13 +6,27 @@
         const details = document.getElementById('emp-details-bar');
         const daysContainer = document.getElementById('month-grid-days');
         const tableWrap = document.getElementById('month-grid-table-wrap');
+        const dayBtn = document.getElementById('hours-view-day-btn');
+        const monthBtn = document.getElementById('hours-view-month-btn');
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 8000);
 
-        if (typeof currentEmpId !== 'undefined') currentEmpId = empId;
-        if (typeof currentEmpName !== 'undefined') currentEmpName = name || '';
+        currentEmpId = empId;
+        currentEmpName = name || '';
         if (nameEl) nameEl.textContent = name || 'עובד';
         if (details) details.classList.remove('hidden');
+        activeHoursDomainFilter = null;
+        pendingCopySegments = {};
+
+        // Cards are the default when an employee is selected.
+        currentHoursView = 'day';
+        dayBtn?.classList.add('bg-blue-600', 'text-white');
+        dayBtn?.classList.remove('text-slate-500');
+        monthBtn?.classList.remove('bg-blue-600', 'text-white');
+        monthBtn?.classList.add('text-slate-500');
+        tableWrap?.classList.add('hidden');
+        daysContainer?.classList.remove('hidden');
+        if (typeof renderHoursSkeleton === 'function') renderHoursSkeleton();
 
         try {
             const response = await fetch(`/api/shifts/${encodeURIComponent(empId)}/latest`, {
@@ -59,33 +73,43 @@
                 });
             }
 
-            // Calendar decorations must never block the actual hours report.
-            if (typeof loadHebrewCalendarForMonth === 'function') {
-                Promise.resolve(loadHebrewCalendarForMonth(month)).catch(err => console.warn('[admin-latest] Hebrew calendar skipped:', err));
-            }
-
-            if (typeof renderHoursView !== 'function') throw new Error('רכיב תצוגת השעות לא נטען.');
+            // Re-assert card view immediately before every render.
+            currentHoursView = 'day';
+            tableWrap?.classList.add('hidden');
+            daysContainer?.classList.remove('hidden');
+            dayBtn?.classList.add('bg-blue-600', 'text-white');
+            monthBtn?.classList.remove('bg-blue-600', 'text-white');
             renderHoursView();
 
             const emp = (typeof empDataMap !== 'undefined') ? empDataMap[empId] : null;
             const pin = document.getElementById('meta-pin');
             if (pin) pin.textContent = emp?.pin_code || '';
 
+            if (typeof loadHebrewCalendarForMonth === 'function' && month) {
+                Promise.resolve(loadHebrewCalendarForMonth(month))
+                    .then(() => {
+                        currentHoursView = 'day';
+                        tableWrap?.classList.add('hidden');
+                        daysContainer?.classList.remove('hidden');
+                        renderHoursView();
+                    })
+                    .catch(err => console.warn('[admin-latest] Hebrew calendar skipped:', err));
+            }
+
             if (!payload.shifts.length && daysContainer) {
                 daysContainer.innerHTML = '<div class="text-center py-12 text-slate-400">אין דיווחי שעות לעובד זה.</div>';
-                if (tableWrap) tableWrap.classList.add('hidden');
             }
         } catch (error) {
+            if (error?.name === 'AbortError') error = new Error('טעינת הדיווחים ארכה יותר מדי זמן.');
             if (daysContainer) {
                 daysContainer.innerHTML = `<div class="text-center py-10 px-4 text-rose-600"><i class="fa-solid fa-triangle-exclamation text-3xl mb-3 block"></i><div class="font-bold mb-2">לא ניתן לטעון את הדיווחים</div><div class="text-sm text-slate-500">${String(error.message || 'שגיאה').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</div></div>`;
             }
-            if (tableWrap) tableWrap.classList.add('hidden');
+            tableWrap?.classList.add('hidden');
             console.error('[admin-latest] latest hours load failed', error);
         } finally {
             clearTimeout(timer);
         }
     }
 
-    // Employee selection always opens the most recently reported month.
     window.loadShiftsForGrid = loadLatestHours;
 })();
